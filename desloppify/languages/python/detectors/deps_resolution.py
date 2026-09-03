@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from desloppify.base.discovery.paths import get_project_root
+from desloppify.languages.python.source_roots import declared_source_roots
 
 
 def resolve_python_from_import(
