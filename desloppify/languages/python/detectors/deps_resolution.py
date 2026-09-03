@@ -147,6 +147,7 @@ def try_resolve_path(target_base: Path) -> str | None:
 
 
 __all__ = [
+    "candidate_source_roots",
     "resolve_absolute_import",
     "resolve_python_from_import",
     "resolve_python_import",
