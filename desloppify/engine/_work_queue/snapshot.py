@@ -290,6 +290,11 @@ def _phase_for_snapshot(
     triage_items: list[WorkQueueItem],
 ) -> str:
     has_execution = bool(anchored_execution_items or explicit_queue_items)
+    execution_ids = {
+        str(item.get("id", ""))
+        for item in (*anchored_execution_items, *explicit_queue_items)
+        if item.get("id")
+    }
     raw_phase = current_lifecycle_phase(plan) if isinstance(plan, dict) else None
     persisted_phase = None
     if isinstance(plan, dict) and isinstance(plan.get("refresh_state"), dict):
@@ -320,6 +325,10 @@ def _phase_for_snapshot(
         postflight_review_items=postflight_review_items,
         postflight_workflow_items=postflight_workflow_items,
         triage_items=triage_items,
+        has_promoted_execution=has_promoted_execution_candidate(
+            plan,
+            execution_ids,
+        ),
     )
 
 
@@ -335,6 +344,7 @@ def _derive_display_phase(
     postflight_review_items: list[WorkQueueItem],
     postflight_workflow_items: list[WorkQueueItem],
     triage_items: list[WorkQueueItem],
+    has_promoted_execution: bool,
 ) -> str:
     """Derive the display phase from queue item partitions.
 
@@ -350,6 +360,7 @@ def _derive_display_phase(
         has_execution=bool(anchored_execution_items or explicit_queue_items),
         fresh_boundary=fresh_boundary,
         prefer_scan=prefer_scan and bool(scan_items),
+        has_promoted_execution=has_promoted_execution,
     )
 
 

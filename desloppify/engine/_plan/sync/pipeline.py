@@ -150,11 +150,23 @@ def _resolve_reconcile_display_phase(
     )
 
     # Check for objective work in the queue.
-    has_real_work = any(
-        not item.startswith(("subjective::", "workflow::", "triage::"))
+    execution_ids = {
+        item
         for item in order
-        if item not in (plan.get("skipped") or {})
-    )
+        if not item.startswith(("subjective::", "workflow::", "triage::"))
+        and item not in (plan.get("skipped") or {})
+    }
+    issues = state.get("work_items") or state.get("issues", {})
+    promoted_execution_ids: set[str] = set()
+    for issue_id in execution_ids:
+        issue = issues.get(issue_id) if isinstance(issues, dict) else None
+        if (
+            isinstance(issue, dict)
+            and issue.get("status") == "open"
+            and not is_assessment_request(issue)
+        ):
+            promoted_execution_ids.add(issue_id)
+    has_real_work = bool(execution_ids)
     has_review_postflight = triage_gated_review or (
         not has_real_work and bool(triage_open_review_ids(plan, state))
     )
@@ -168,6 +180,10 @@ def _resolve_reconcile_display_phase(
         has_execution=has_real_work,
         fresh_boundary=fresh_boundary,
         prefer_scan=prefer_scan,
+        has_promoted_execution=has_promoted_execution_candidate(
+            plan,
+            promoted_execution_ids,
+        ),
     )
 
 
