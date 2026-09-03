@@ -180,7 +180,6 @@ def _merge_execution_candidates(
 ) -> tuple[list[WorkQueueItem], list[WorkQueueItem]]:
     """Merge queue-owned execution items with objective defaults."""
     explicit_queue_ids = _live_planned_queue_ids(plan)
-
     queued_non_review_items = [
         item
         for item in all_issue_items
