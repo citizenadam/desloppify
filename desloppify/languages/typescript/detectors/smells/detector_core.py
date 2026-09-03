@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import re
 
+from desloppify.languages.typescript.syntax.scanner import scan_code
+
 from .helpers import (
     _code_text,
+    _find_block_end,
     _strip_ts_comments,
 )
 
@@ -108,6 +111,39 @@ def _find_opening_brace_line(
     for idx in range(start, min(start + window, len(lines))):
         if "{" in lines[idx]:
             return idx
+    return None
+
+
+def _find_function_body_brace(content: str) -> int | None:
+    """Find the function body ``{``, ignoring braces in params/defaults/types."""
+    paren_depth = 0
+    saw_signature_close = False
+    for index, ch, in_string in scan_code(content):
+        if in_string:
+            continue
+        if ch == "(":
+            paren_depth += 1
+            continue
+        if ch == ")":
+            paren_depth = max(0, paren_depth - 1)
+            if paren_depth == 0:
+                saw_signature_close = True
+            continue
+        if ch != "{" or paren_depth != 0 or not saw_signature_close:
+            continue
+        # ``function f(): { value: string } {`` has a return-type literal
+        # before the real body. Keep scanning until the body brace.
+        if _previous_code_char(content, index) == ":":
+            continue
+        # ``function f(): Promise<{ value: string }> {`` nests a type literal
+        # inside the return type. Its closing brace is followed by type syntax,
+        # not by the next top-level declaration/expression.
+        end = _find_block_end(content, index)
+        if end is None:
+            continue
+        if _next_code_char(content, end) in {"{", ">", "|", "&", ","}:
+            continue
+        return index
     return None
 
 
