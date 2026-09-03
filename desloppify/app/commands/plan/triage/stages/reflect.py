@@ -41,7 +41,15 @@ def _validate_recurring_dimension_mentions(
     if not recurring_dims:
         return True
     report_lower = report.lower()
-    mentioned = [dim for dim in recurring_dims if dim.lower() in report_lower]
+    mentioned = [
+        dim
+        for dim in recurring_dims
+        if any(
+            name.lower() in report_lower
+            for name in (dim, DISPLAY_NAMES.get(dim))
+            if name
+        )
+    ]
     if mentioned:
         return True
     print(colorize("  Recurring patterns detected but not addressed in report:", "red"))
