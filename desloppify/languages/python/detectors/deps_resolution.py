@@ -82,7 +82,7 @@ def resolve_python_import(
     scan_root_path = Path(scan_root) if not isinstance(scan_root, Path) else scan_root
     if module_path.startswith("."):
         return resolve_relative_import(module_path, source_dir)
-    return resolve_absolute_import(module_path, scan_root_path)
+    return resolve_absolute_import(module_path, scan_root_path, source_dir=source_dir)
 
 
 def resolve_relative_import(module_path: str, source_dir: Path) -> str | None:
