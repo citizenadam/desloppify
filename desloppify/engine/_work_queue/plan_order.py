@@ -10,13 +10,14 @@ from desloppify.engine._plan.cluster_semantics import (
     infer_cluster_action_type,
     infer_cluster_execution_policy,
 )
+from desloppify.engine._work_queue.types import WorkQueueItem
 from desloppify.engine.plan_ops import (
     get_issue_description,
     get_issue_note,
     get_issue_override,
 )
-from desloppify.engine._work_queue.types import WorkQueueItem
 from desloppify.state_io import StateModel
+
 
 def new_item_ids(state: StateModel) -> set[str]:
     """Return issue IDs added in the most recent scan."""
@@ -198,7 +199,7 @@ def collapse_clusters(items: list[WorkQueueItem], plan: dict) -> list[WorkQueueI
     """Replace cluster member items with single cluster meta-items.
 
     Both auto-clusters and manual (triage) clusters are collapsed.  Manual
-    clusters are inserted at the front in plan order so triage-prioritised
+    clusters are inserted at the front in explicit priority order so
     work appears before auto-clustered mechanical items.
     """
     clusters = plan.get("clusters", {})
@@ -262,6 +263,8 @@ def collapse_clusters(items: list[WorkQueueItem], plan: dict) -> list[WorkQueueI
     rest: list[WorkQueueItem] = []
     for item in items:
         cname = fid_to_cluster.get(item.get("id", ""))
+        if cname and cname in manual_names:
+            continue
         if cname and cname in meta_items:
             if cname not in seen_clusters:
                 seen_clusters.add(cname)
@@ -272,8 +275,15 @@ def collapse_clusters(items: list[WorkQueueItem], plan: dict) -> list[WorkQueueI
         else:
             rest.append(item)
 
-    # Manual clusters at the front in plan order, then everything else
-    manual_result = [meta_items[name] for name in manual_names if name in seen_clusters]
+    # Manual clusters at the front in priority order, then everything else.
+    # Singleton manual clusters stay as their original issue item so callers
+    # still receive the normal per-finding execution detail.
+    manual_result: list[WorkQueueItem] = []
+    for name in manual_names:
+        if name in meta_items:
+            manual_result.append(meta_items[name])
+        else:
+            manual_result.extend(cluster_members[name])
     return manual_result + rest
 
 

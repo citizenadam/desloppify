@@ -12,6 +12,7 @@ from desloppify.base.output.terminal import colorize
 from desloppify.engine._plan.constants import (
     WORKFLOW_CREATE_PLAN_ID,
     WORKFLOW_SCORE_CHECKPOINT_ID,
+    is_synthetic_id,
 )
 from desloppify.engine._plan.policy.stale import triage_review_issue_snapshot_hash
 from desloppify.engine._plan.refresh_lifecycle import (
