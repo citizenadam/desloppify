@@ -54,7 +54,14 @@ def detect_python_security(files, zone_map) -> LangSecurityResult:
     if scan_root is None:
         return LangSecurityResult(entries=[], files_scanned=0)
 
-    exclude_dirs = collect_exclude_dirs(scan_root)
+    # Config-level excludes (`desloppify exclude <dir>`) are stored in the project
+    # config, not the runtime context that get_exclusions() reads here. Without
+    # loading them explicitly, bandit rescans excluded directories even though every
+    # other detector honours the exclude.
+    config_excludes = tuple(p for p in (load_config().get("exclude") or ()) if isinstance(p, str))
+    exclude_dirs = collect_exclude_dirs(
+        scan_root, extra_exclusions=tuple(get_exclusions()) + config_excludes
+    )
     skip_tests = _load_bandit_skip_tests()
     result = detect_with_bandit_files(
         files,
