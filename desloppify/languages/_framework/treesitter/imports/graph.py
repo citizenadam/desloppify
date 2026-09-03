@@ -7,11 +7,31 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .cache import get_or_parse_tree
+from desloppify.base.discovery.file_paths import resolve_scan_file
+
 from ..analysis.extractors import _get_parser, _make_query, _run_query, _unwrap_node
+from .cache import get_or_parse_tree
 
 if TYPE_CHECKING:
     from desloppify.languages._framework.treesitter import TreeSitterLangSpec
+
+
+def _source_path(filepath: str) -> Path:
+    """Resolve discovery keys against the project root without changing case."""
+    return resolve_scan_file(filepath)
+
+
+def _import_path(filepath: str, scan_path: Path) -> Path:
+    """Resolve a resolver result using its scan-root-relative contract."""
+    path = Path(filepath)
+    if path.is_absolute():
+        return path.resolve()
+    return (scan_path / path).resolve()
+
+
+def _path_identity(path: Path) -> str:
+    """Return a comparison identity without changing the path used for I/O."""
+    return os.path.normcase(str(path))
 
 
 def ts_build_dep_graph(
@@ -43,7 +63,8 @@ def ts_build_dep_graph(
         graph[f] = {"imports": set(), "importers": set()}
 
     for filepath in file_list:
-        cached = get_or_parse_tree(filepath, parser, spec.grammar)
+        source_path = file_paths_by_key[filepath]
+        cached = get_or_parse_tree(str(source_path), parser, spec.grammar)
         if cached is None:
             continue
         _source, tree = cached
@@ -75,7 +96,9 @@ def ts_build_dep_graph(
                 ).strip("\"'`")
                 import_text = f"{prefix_text}\\{import_text}"
 
-            resolved = spec.resolve_import(import_text, filepath, scan_path)
+            resolved = spec.resolve_import(
+                import_text, str(source_path), str(scan_path)
+            )
             if resolved is None:
                 continue
 
