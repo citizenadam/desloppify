@@ -227,6 +227,7 @@ class TestDenoFallback:
 
     def test_detect_unused_non_deno_keeps_tsc_path(self, tmp_path, monkeypatch):
         """Regular TypeScript projects should still parse TS6133/TS6192 from tsc."""
+        _write(tmp_path, "tsconfig.json", "{}\n")
         _write(tmp_path, "src/app.ts", "const x = 1;\n")
 
         class _Result:
@@ -292,6 +293,7 @@ class TestDenoFallback:
     ):
         """A repo-level deno.lock alone should not disable tsc-based unused detection."""
         _write(tmp_path, "deno.lock", "{}\n")
+        _write(tmp_path, "tsconfig.json", "{}\n")
         _write(tmp_path, "src/app.ts", "const x = 1;\n")
 
         class _Result:
@@ -314,3 +316,39 @@ class TestDenoFallback:
         assert calls["count"] == 1
         assert total == 1
         assert entries and entries[0]["name"] == "x"
+
+    def test_detect_unused_uses_nearest_monorepo_tsconfig(self, tmp_path, monkeypatch):
+        """A nested project must not inherit an unrelated root app config."""
+        _write(tmp_path, "tsconfig.app.json", "{}\n")
+        _write(tmp_path, "libs/contracts/tsconfig.json", "{}\n")
+        _write(tmp_path, "libs/contracts/src/index.ts", "const x = 1;\n")
+
+        recorded: dict[str, object] = {}
+
+        class _Result:
+            stdout = ""
+            stderr = ""
+
+        def _fake_run(project_root, tsconfig_path):
+            recorded["project_root"] = project_root
+            recorded["tsconfig_path"] = tsconfig_path
+            recorded["config"] = json.loads(tsconfig_path.read_text())
+            return _Result()
+
+        monkeypatch.setattr(ts_unused_mod, "_run_tsc_unused_check", _fake_run)
+
+        entries, total = detect_unused(tmp_path / "libs/contracts")
+
+        assert entries == []
+        assert total == 1
+        assert recorded["tsconfig_path"] == (
+            tmp_path / "libs/contracts/tsconfig.desloppify.json"
+        )
+        assert recorded["config"] == {
+            "extends": "./tsconfig.json",
+            "compilerOptions": {
+                "noUnusedLocals": True,
+                "noUnusedParameters": True,
+            },
+        }
+        assert not (tmp_path / "libs/contracts/tsconfig.desloppify.json").exists()
