@@ -93,6 +93,24 @@ def capture_cluster_context(plan: dict, resolved_ids: list[str]) -> ClusterConte
     )
 
 
+def _cluster_has_open_member(
+    plan: dict, state: dict | None, cluster_name: str
+) -> bool:
+    """Return whether a cluster still contains an open state work item."""
+    if state is None:
+        return False
+    cluster = (plan.get("clusters") or {}).get(cluster_name)
+    if not isinstance(cluster, dict):
+        return False
+    issues = state.get("work_items") or state.get("issues", {})
+    if not isinstance(issues, dict):
+        return False
+    return any(
+        issues.get(issue_id, {}).get("status") == "open"
+        for issue_id in cluster.get("issue_ids") or []
+    )
+
+
 def update_living_plan_after_resolve(
     *,
     args: argparse.Namespace,
@@ -143,8 +161,12 @@ def update_living_plan_after_resolve(
             # Clear focus when the active cluster is done
             if plan.get("active_cluster") in set(completed_clusters):
                 plan["active_cluster"] = None
-        elif ctx.cluster_name and ctx.cluster_remaining > 0:
-            # Auto-focus on the cluster while there's still work in it
+        elif (
+            ctx.cluster_name
+            and ctx.cluster_remaining > 0
+            and _cluster_has_open_member(plan, state, ctx.cluster_name)
+        ):
+            # Auto-focus only while a state-open member remains in the cluster.
             plan["active_cluster"] = ctx.cluster_name
         if args.status == "fixed":
             add_uncommitted_issues(plan, all_resolved)
