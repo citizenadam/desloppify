@@ -65,6 +65,7 @@ def _resolve_all_patterns(
                     args.status,
                     args.note,
                     attestation=attestation,
+                    reattribute_auto_resolved=args.status == "fixed" and bool(attestation),
                 )
                 all_resolved.extend(resolved)
             continue
@@ -77,6 +78,7 @@ def _resolve_all_patterns(
             args.status,
             args.note,
             attestation=attestation,
+            reattribute_auto_resolved=args.status == "fixed" and bool(attestation),
         )
         all_resolved.extend(resolved)
     return all_resolved
