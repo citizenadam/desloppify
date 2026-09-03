@@ -7,18 +7,22 @@ import argparse
 from desloppify.base.output.terminal import colorize
 from desloppify.base.output.user_message import print_user_message
 
+from ..services import TriageServices, default_triage_services
+from ..stages.helpers import active_triage_issue_scope, scoped_manual_clusters_with_issues
+from ..validation.enrich_quality import (
+    EnrichQualityIssue as _ConfirmationCheckIssue,
+)
+from ..validation.enrich_quality import (
+    EnrichQualityReport as _ConfirmationCheckReport,
+)
+from ..validation.enrich_quality import (
+    evaluate_enrich_quality,
+)
 from .basic import MIN_ATTESTATION_LEN, validate_attestation
 from .shared import (
     StageConfirmationRequest,
     ensure_stage_is_confirmable,
     finalize_stage_confirmation,
-)
-from ..services import TriageServices, default_triage_services
-from ..stages.helpers import active_triage_issue_scope, scoped_manual_clusters_with_issues
-from ..validation.enrich_quality import (
-    EnrichQualityIssue as _ConfirmationCheckIssue,
-    EnrichQualityReport as _ConfirmationCheckReport,
-    evaluate_enrich_quality,
 )
 
 

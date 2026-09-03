@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import desloppify.engine._plan.triage.snapshot as snapshot_mod
+from desloppify.engine._plan.triage.lifecycle import ensure_active_triage_issue_ids
 
 
 def test_normalized_issue_id_list_filters_invalid_values() -> None:

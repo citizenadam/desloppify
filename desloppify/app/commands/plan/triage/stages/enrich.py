@@ -118,7 +118,7 @@ def _require_cluster_update_activity(
         return True
     activity = deps.count_log_activity_since(plan, organize_ts)
     update_ops = activity.get("cluster_update", 0)
-    if update_ops != 0 or not open_review_ids_from_state(state):
+    if update_ops != 0 or not triage_open_review_ids_from_state(plan, state):
         return True
     if attestation and len(attestation.strip()) >= 40:
         print(
