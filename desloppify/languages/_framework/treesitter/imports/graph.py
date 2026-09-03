@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -38,11 +39,28 @@ def ts_build_dep_graph(
     path: Path,
     spec: TreeSitterLangSpec,
     file_list: list[str],
+    *,
+    framework_extensions: tuple[str, ...] | None = None,
+    framework_file_finder: Callable[[Path], list[str]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Build a dependency graph by parsing imports with tree-sitter.
 
     Returns the same shape as Python/TS dep graphs:
     {file: {"imports": set[str], "importers": set[str], "import_count": int, "importer_count": int}}
+
+    When ``framework_extensions`` is provided (e.g. ``(".astro", ".svelte",
+    ".vue")``), files under ``path`` with those extensions are also scanned
+    via a regex-based import extractor, and their imports are recorded as
+    importer edges on matching entries in ``file_list``. The framework files
+    themselves are intentionally not added as graph nodes — they don't belong
+    to the host language's extension set, so we never want them to surface in
+    orphan or coupling reports.
+
+    When ``framework_file_finder`` is provided, it's used to enumerate
+    framework files (so callers can supply an exclude-aware finder built via
+    ``make_file_finder``). When omitted, a plain ``find_source_files`` scan
+    is used — convenient for unit tests but doesn't honor user-configured
+    exclusions; production callers should pass a finder.
     """
     if not spec.import_query or not spec.resolve_import:
         return {}
@@ -59,7 +77,7 @@ def ts_build_dep_graph(
     graph: dict[str, dict[str, Any]] = {}
 
     # Initialize all files in the graph.
-    for f in file_list:
+    for f in absolute_file_list:
         graph[f] = {"imports": set(), "importers": set()}
 
     for filepath in file_list:
@@ -129,19 +147,82 @@ def ts_build_dep_graph(
     return graph
 
 
+def _add_framework_importers(
+    *,
+    graph: dict[str, dict[str, Any]],
+    file_set: set[str],
+    framework_extensions: tuple[str, ...],
+    framework_file_finder: Callable[[Path], list[str]] | None,
+    spec: TreeSitterLangSpec,
+    scan_path: str,
+    path: Path,
+) -> None:
+    """Add framework files (.astro/.svelte/.vue) as importer edges on graph nodes.
+
+    Framework files carry their imports in fenced or top-level sections that
+    the host language's tree-sitter grammar can't parse cleanly. We extract
+    import specifiers with a regex and resolve them via the spec's own
+    ``resolve_import`` so framework-file imports behave exactly like
+    host-language imports — only edges into ``file_set`` are kept, and the
+    framework files themselves are not added as graph nodes.
+    """
+    if framework_file_finder is not None:
+        fw_files = framework_file_finder(path)
+    else:
+        fw_files = find_source_files(path, list(framework_extensions))
+    if not fw_files:
+        return
+
+    # grep_files yields one row per matched line, so resolving each filepath
+    # to absolute inside the loop would re-do the work N times per file.
+    # Build the abs-path map once up front.
+    fw_abs = {f: resolve_path(f) for f in fw_files}
+
+    for filepath, _lineno, line in grep_files(
+        r"""(?:\bfrom\s+['"]|\bimport\s+['"])""", fw_files
+    ):
+        importer_abs = fw_abs[filepath]
+        cleaned_line = _strip_inline_comments(line)
+        for match in _FRAMEWORK_IMPORT_RE.finditer(cleaned_line):
+            import_text = match.group(1)
+            resolved = spec.resolve_import(import_text, importer_abs, scan_path)
+            if resolved is None:
+                continue
+            if not os.path.isabs(resolved):
+                resolved = os.path.normpath(os.path.join(scan_path, resolved))
+            if resolved not in file_set:
+                continue
+            graph[resolved]["importers"].add(importer_abs)
+
+
 def make_ts_dep_builder(
     spec: TreeSitterLangSpec,
     file_finder: Callable[[Path], list[str]],
+    *,
+    framework_extensions: tuple[str, ...] | None = None,
+    framework_file_finder: Callable[[Path], list[str]] | None = None,
 ) -> Callable[[Path], dict[str, dict[str, Any]]]:
     """Create a dep graph builder bound to a TreeSitterLangSpec + file finder.
 
     Returns a callable with signature (path: Path) -> dict,
     matching the contract expected by LangConfig.build_dep_graph.
+
+    When ``framework_extensions`` is provided, framework files under the
+    scanned path also contribute importer edges (see ``ts_build_dep_graph``).
+    ``framework_file_finder`` lets callers thread the same exclude set used
+    for the host language; when omitted, the framework scan honors only
+    default exclusions.
     """
 
     def build(path: Path) -> dict[str, dict[str, Any]]:
         file_list = file_finder(path)
-        return ts_build_dep_graph(path, spec, file_list)
+        return ts_build_dep_graph(
+            path,
+            spec,
+            file_list,
+            framework_extensions=framework_extensions,
+            framework_file_finder=framework_file_finder,
+        )
 
     return build
 
