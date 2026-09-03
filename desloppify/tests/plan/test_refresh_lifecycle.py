@@ -346,7 +346,6 @@ def test_derive_display_phase_is_stateless() -> None:
     assert derive_display_phase(**kwargs) == derive_display_phase(**kwargs)
 
 
-
 def test_carry_forward_subjective_review_updates_matching_marker() -> None:
     plan = empty_plan()
     plan["refresh_state"] = {
