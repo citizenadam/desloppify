@@ -140,7 +140,14 @@ def _create_strategic_work_items(
     plan: dict,
     strategic_issues: list[dict],
 ) -> None:
-    """Create work items in state and insert IDs at front of queue_order."""
+    """Create work items in state and insert IDs at front of queue_order.
+
+    A strategist can reuse an identifier from an older cycle.  Existing skips,
+    especially protected false-positive and permanent skips, are deliberate
+    plan intent and must not be silently revived by a generated report.  The
+    new assessment remains available in the strategist briefing, while the
+    skipped ID stays out of the execution queue.
+    """
     work_items = state.setdefault("work_items", {})
     if not work_items:
         issues = state.get("issues")

@@ -125,7 +125,10 @@ def _validate_organize_submission(
     ):
         return None
 
-    manual_clusters = _manual_clusters_or_error(plan, open_review_ids=open_review_ids)
+    manual_clusters = _manual_clusters_or_error(
+        triage_scoped_plan(plan, state),
+        open_review_ids=open_review_ids,
+    )
     if manual_clusters is None:
         return None
     if not _clusters_enriched_or_error(plan, state):

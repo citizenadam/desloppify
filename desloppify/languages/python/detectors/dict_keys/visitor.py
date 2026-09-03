@@ -98,7 +98,9 @@ class DictKeyVisitor(ast.NodeVisitor):
             target = node.targets[0]
             name = _get_name(target)
             if name:
-                self._check_dict_creation(name, node.value, node.lineno)
+                tracked = self._check_dict_creation(name, node.value, node.lineno)
+                if tracked is not None and isinstance(target, ast.Attribute):
+                    tracked.returned_or_passed = True
         # Also check for subscript writes: d["key"] = val
         for target in node.targets:
             self._check_subscript_write(target, node.lineno)

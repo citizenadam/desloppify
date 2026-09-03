@@ -1,6 +1,27 @@
-"""Auto-complete action steps when their referenced issues leave the queue."""
+"""Auto-complete action steps from fixed resolve evidence."""
 
 from __future__ import annotations
+
+
+def _fixed_resolved_ids(plan: dict) -> set[str]:
+    """Return IDs with a recorded fixed resolve, including legacy entries."""
+    fixed_ids: set[str] = set()
+    execution_log = plan.get("execution_log")
+    if not isinstance(execution_log, list):
+        return fixed_ids
+
+    for entry in execution_log:
+        if not isinstance(entry, dict) or entry.get("action") != "resolve":
+            continue
+        detail = entry.get("detail")
+        if isinstance(detail, dict) and detail.get("status") != "fixed":
+            continue
+        issue_ids = entry.get("issue_ids")
+        if isinstance(issue_ids, list):
+            fixed_ids.update(
+                issue_id for issue_id in issue_ids if isinstance(issue_id, str)
+            )
+    return fixed_ids
 
 
 def auto_complete_steps(plan: dict) -> list[str]:

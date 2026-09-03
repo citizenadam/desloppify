@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 from desloppify.engine._plan.step_completion import auto_complete_steps
+from desloppify.engine.plan_ops import purge_ids, skip_items
 
 
-def test_auto_complete_steps_marks_done_when_all_refs_leave_queue() -> None:
+def test_auto_complete_steps_marks_done_when_all_refs_have_fixed_resolves() -> None:
     plan = {
-        "queue_order": ["review::id::abc123", "review::open::keep999"],
+        "execution_log": [
+            {
+                "action": "resolve",
+                "issue_ids": ["review::done::gone1", "review::done::gone2"],
+                "detail": {"status": "fixed"},
+            }
+        ],
         "clusters": {
             "epic/cleanup": {
                 "action_steps": [
@@ -26,9 +33,15 @@ def test_auto_complete_steps_marks_done_when_all_refs_leave_queue() -> None:
     assert messages == ["  Step 2 of 'epic/cleanup' auto-completed: Fix stale refs"]
 
 
-def test_auto_complete_steps_matches_exact_issue_ids() -> None:
+def test_auto_complete_steps_matches_exact_fixed_issue_ids() -> None:
     plan = {
-        "queue_order": ["review::still-open"],
+        "execution_log": [
+            {
+                "action": "resolve",
+                "issue_ids": ["review::gone"],
+                "detail": {"status": "fixed"},
+            }
+        ],
         "clusters": {
             "epic/exact": {
                 "action_steps": [
@@ -45,6 +58,29 @@ def test_auto_complete_steps_matches_exact_issue_ids() -> None:
     assert steps[0].get("done") is not True
     assert steps[1]["done"] is True
     assert "Step 2" in messages[0]
+
+
+def test_auto_complete_steps_accepts_legacy_resolve_entries() -> None:
+    plan = {
+        "execution_log": [
+            {
+                "action": "resolve",
+                "issue_ids": ["review::legacy::fixed"],
+            }
+        ],
+        "clusters": {
+            "legacy": {
+                "action_steps": [
+                    {"title": "Finish legacy work", "issue_refs": ["legacy::fixed"]}
+                ]
+            }
+        },
+    }
+
+    messages = auto_complete_steps(plan)
+
+    assert plan["clusters"]["legacy"]["action_steps"][0]["done"] is True
+    assert messages == ["  Step 1 of 'legacy' auto-completed: Finish legacy work"]
 
 
 def test_auto_complete_steps_ignores_done_steps_and_invalid_step_shapes() -> None:

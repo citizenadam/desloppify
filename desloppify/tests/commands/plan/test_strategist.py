@@ -5,21 +5,20 @@ from __future__ import annotations
 import argparse
 from types import SimpleNamespace
 
-import pytest
-
 import desloppify.app.commands.plan.triage.stages.strategize as strategize_mod
-from desloppify.app.commands.plan.triage.workflow import run_triage_workflow
 from desloppify.app.cli_support.parser_groups_plan_impl_sections_triage_commit_scan import (
     _add_triage_subparser,
 )
+from desloppify.app.commands.plan.triage.stages.observe import cmd_stage_observe
+from desloppify.app.commands.plan.triage.workflow import run_triage_workflow
 from desloppify.engine._plan.constants import (
     TRIAGE_STAGE_IDS,
     confirmed_triage_stage_names,
     recorded_unconfirmed_triage_stage_names,
 )
+from desloppify.engine._plan.schema import empty_plan, validate_plan
 from desloppify.engine._plan.sync.triage import _inject_pending_triage_stages
 from desloppify.engine.plan_triage import compute_triage_progress
-from desloppify.app.commands.plan.triage.stages.observe import cmd_stage_observe
 
 
 def _services(plan: dict, state: dict):
