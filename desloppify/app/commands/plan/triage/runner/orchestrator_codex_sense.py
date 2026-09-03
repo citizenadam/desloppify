@@ -394,7 +394,7 @@ def run_sense_check(
         return _parallel_failure_result(structure_failures, log=_log)
 
     # Value batch — runs after structure (needs corrected plan state)
-    value_plan = dict(plan)
+    value_plan = dict(scoped_plan)
     if apply_updates and reload_plan is not None:
         reloaded = _reload_structure_plan(reload_plan=reload_plan, log=_log)
         if reloaded is not None:
