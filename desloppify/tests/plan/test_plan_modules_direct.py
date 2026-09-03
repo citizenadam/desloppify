@@ -66,6 +66,52 @@ def test_select_phases_and_run_phases_behavior():
     assert potentials == {"fast": 1, "slow": 2, "review": 3}
 
 
+def test_stamp_issue_context_excludes_all_test_flat_directory_from_score():
+    files = ["auth_test.go", "internal/runner/runner.go"]
+    overrides = {file_path: "test" for file_path in files}
+    zone_map = FileZoneMap(files, [], overrides=overrides)
+    issue = filtering_mod.make_issue(
+        "flat_dirs",
+        ".",
+        "",
+        tier=3,
+        confidence="medium",
+        summary="Directory overload",
+    )
+    lang = SimpleNamespace(name="go", zone_map=zone_map)
+
+    plan_scan_mod._stamp_issue_context([issue], lang)
+
+    assert issue["zone"] == "test"
+    assert detector_pass_rate("flat_dirs", {issue["id"]: issue}, 5) == (
+        1.0,
+        0,
+        0.0,
+    )
+
+
+def test_stamp_issue_context_keeps_production_flat_directory_scored():
+    zone_map = FileZoneMap(["app.go", "internal/service.go"], [])
+    issue = filtering_mod.make_issue(
+        "flat_dirs",
+        ".",
+        "",
+        tier=3,
+        confidence="medium",
+        summary="Directory overload",
+    )
+    lang = SimpleNamespace(name="go", zone_map=zone_map)
+
+    plan_scan_mod._stamp_issue_context([issue], lang)
+
+    assert issue["zone"] == "production"
+    assert detector_pass_rate("flat_dirs", {issue["id"]: issue}, 5) == (
+        0.86,
+        1,
+        0.7,
+    )
+
+
 def test_generate_issues_from_lang_primes_and_clears_review_prefetch(monkeypatch):
     calls: list[str] = []
     lang = SimpleNamespace(phases=[], zone_map=None, name="python")
@@ -191,7 +237,9 @@ def test_resolve_lang_prefers_explicit_and_fallbacks(monkeypatch):
     assert plan_scan_mod._resolve_lang(explicit, Path(".")) is explicit
 
     monkeypatch.setattr(plan_scan_mod, "auto_detect_lang", lambda _root: None)
-    monkeypatch.setattr(plan_scan_mod, "available_langs", lambda: ["python", "typescript"])
+    monkeypatch.setattr(
+        plan_scan_mod, "available_langs", lambda: ["python", "typescript"]
+    )
     monkeypatch.setattr(plan_scan_mod, "get_lang", lambda name: f"cfg:{name}")
     resolved = plan_scan_mod._resolve_lang(None, Path("."))
     assert resolved == "cfg:python"

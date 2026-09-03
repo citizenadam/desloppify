@@ -199,6 +199,25 @@ class FileZoneMap:
 
         return Zone.PRODUCTION
 
+    def get_directory(self, path: str) -> Zone:
+        """Get the common zone for classified files beneath a directory."""
+        rel_path = path
+        if self._rel_fn is not None:
+            try:
+                rel_path = self._rel_fn(path)
+            except (OSError, TypeError, ValueError):
+                pass
+
+        directory = PurePath(rel_path)
+        zones = {
+            zone
+            for file_path, zone in self._rel_map.items()
+            if PurePath(file_path).is_relative_to(directory)
+        }
+        if len(zones) == 1:
+            return zones.pop()
+        return Zone.PRODUCTION
+
     def exclude(self, files: list[str], *zones: Zone) -> list[str]:
         """Return files NOT in the given zones."""
         zone_set = set(zones)
