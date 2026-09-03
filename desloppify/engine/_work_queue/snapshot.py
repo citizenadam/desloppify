@@ -524,21 +524,24 @@ def _build_backlog(
     p: _Partitions,
     execution_ids: set[str],
 ) -> list[WorkQueueItem]:
-    return [
-        item
-        for item in (
-            [
-                *p.objective_items,
-                *p.initial_review_items,
-                *p.postflight_assessment_items,
-                *p.review_issue_items,
-                *p.scan_items,
-                *p.postflight_workflow_items,
-                *p.triage_items,
-            ]
-        )
-        if item.get("id", "") not in execution_ids
-    ]
+    backlog: list[WorkQueueItem] = []
+    seen_ids = set(execution_ids)
+    for item in (
+        *p.objective_items,
+        *p.initial_review_items,
+        *p.postflight_assessment_items,
+        *p.review_issue_items,
+        *p.scan_items,
+        *p.postflight_workflow_items,
+        *p.triage_items,
+    ):
+        item_id = item.get("id", "")
+        if item_id and item_id in seen_ids:
+            continue
+        if item_id:
+            seen_ids.add(item_id)
+        backlog.append(item)
+    return backlog
 
 
 # ---------------------------------------------------------------------------
