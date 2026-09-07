@@ -190,3 +190,69 @@ def test_luau_spec_extracts_typed_declarations(tmp_path: Path):
         fn.name for fn in ts_extract_functions(tmp_path, LUAU_SPEC, [str(module)])
     }
     assert names == {"Handler.doThing", "Handler:Method"}
+
+
+def _unused(tmp_path: Path, name: str, body: str) -> list[str]:
+    from desloppify.languages._framework.treesitter import LUAU_SPEC
+    from desloppify.languages._framework.treesitter.analysis.unused_imports import (
+        detect_unused_imports,
+    )
+
+    pytest.importorskip("tree_sitter_language_pack")
+    module = _write(tmp_path / name, body)
+    return [entry["name"] for entry in detect_unused_imports([str(module)], LUAU_SPEC)]
+
+
+def test_unused_import_reports_the_binding_not_the_module_path(tmp_path: Path):
+    """local TeamClass = require(".../Team") binds TeamClass, not Team."""
+    assert _unused(
+        tmp_path,
+        "Aliased.luau",
+        'local TeamClass = require("@game/ReplicatedStorage/Tools/Team")\nreturn {}\n',
+    ) == ["TeamClass"]
+
+
+def test_used_alias_is_not_reported(tmp_path: Path):
+    assert (
+        _unused(
+            tmp_path,
+            "Used.luau",
+            'local TeamClass = require("@game/ReplicatedStorage/Tools/Team")\n'
+            "return TeamClass.new()\n",
+        )
+        == []
+    )
+
+
+def test_require_bound_to_no_name_is_not_reported(tmp_path: Path):
+    """An inline require in a table literal binds nothing, so it cannot be unused."""
+    assert (
+        _unused(
+            tmp_path,
+            "Inline.luau",
+            'local MODULES = {\n\trequire("@self/Entities/awp"),\n}\nreturn MODULES\n',
+        )
+        == []
+    )
+
+
+def test_underscore_prefixed_binding_is_not_reported(tmp_path: Path):
+    """A leading underscore marks a binding deliberately left unreferenced."""
+    assert (
+        _unused(
+            tmp_path,
+            "Underscore.luau",
+            'local _Types = require("@game/ReplicatedStorage/Configuration/ConchTypes")\n'
+            "return {}\n",
+        )
+        == []
+    )
+
+
+def test_multiple_assignment_pairs_bindings_with_values(tmp_path: Path):
+    """Targets and values line up by position, so each require checks its own name."""
+    assert _unused(
+        tmp_path,
+        "Multi.luau",
+        'local Used, Dropped = require("@game/A"), require("@game/B")\nreturn Used\n',
+    ) == ["Dropped"]

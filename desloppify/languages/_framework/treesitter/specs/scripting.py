@@ -12,6 +12,7 @@ from ..imports.resolvers_scripts import (
     resolve_r_import,
     resolve_ruby_import,
 )
+from ..analysis.import_bindings import luau_import_binding
 from ..types import TreeSitterLangSpec
 
 RUBY_SPEC = TreeSitterLangSpec(
@@ -104,6 +105,7 @@ LUAU_SPEC = TreeSitterLangSpec(
             (#eq? @_fn "require")) @import
     """,
     resolve_import=resolve_luau_import,
+    import_binding=luau_import_binding,
     log_patterns=(
         r"^\s*(?:print\(|warn\(|io\.write)",
     ),
