@@ -497,7 +497,7 @@ def _extract_import_name(import_path: str) -> str:
 
     for ext in (".go", ".rs", ".rb", ".py", ".js", ".jsx", ".ts",
                 ".tsx", ".java", ".kt", ".cs", ".fs", ".ml",
-                ".ex", ".erl", ".hs", ".lua", ".zig", ".pm",
+                ".ex", ".erl", ".hs", ".lua", ".luau", ".zig", ".pm",
                 ".sh", ".pl", ".scala", ".swift", ".php",
                 ".dart", ".mjs", ".cjs", ".h", ".hh", ".hpp"):
         if candidate.endswith(ext):
