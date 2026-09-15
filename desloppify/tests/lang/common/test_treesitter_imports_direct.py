@@ -347,3 +347,28 @@ def test_js_dep_graph_records_commonjs_require_edges(tmp_path: Path) -> None:
     assert graph[str(tmp_path / "lazy.js")]["importer_count"] == 1
     assert graph[str(tmp_path / "app.js")]["import_count"] == 3
     assert graph[str(tmp_path / "app.js")]["importer_count"] == 0
+
+
+def test_js_dep_graph_resolves_edges_for_relative_file_lists(tmp_path: Path, monkeypatch) -> None:
+    """Edges must resolve when ``file_list`` holds paths relative to the cwd.
+
+    Regression: resolved imports were normalized with
+    ``join(path.resolve(), resolved)``. When the resolver had already returned a
+    cwd-relative path that produced a doubled path which never matched the file
+    set, so every edge was dropped and all files looked orphaned.
+    """
+    from desloppify.languages._framework.treesitter import JS_SPEC
+
+    pkg = tmp_path / "pkg"
+    (pkg / "src").mkdir(parents=True)
+    (pkg / "src" / "logger.js").write_text("module.exports = {};\n", encoding="utf-8")
+    (pkg / "src" / "app.js").write_text(
+        "const logger = require('./logger');\nmodule.exports = logger;\n", encoding="utf-8"
+    )
+
+    monkeypatch.chdir(tmp_path)
+    rel_files = ["pkg/src/app.js", "pkg/src/logger.js"]
+    graph = graph_mod.ts_build_dep_graph(Path("pkg"), JS_SPEC, rel_files)
+
+    assert graph["pkg/src/logger.js"]["importer_count"] == 1
+    assert graph["pkg/src/app.js"]["imports"] == {"pkg/src/logger.js"}
