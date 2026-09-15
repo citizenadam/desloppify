@@ -7,10 +7,12 @@ from ..imports.resolvers_scripts import (
     resolve_bash_source,
     resolve_js_import,
     resolve_lua_import,
+    resolve_luau_import,
     resolve_perl_import,
     resolve_r_import,
     resolve_ruby_import,
 )
+from ..analysis.import_bindings import luau_import_binding
 from ..types import TreeSitterLangSpec
 
 RUBY_SPEC = TreeSitterLangSpec(
@@ -77,6 +79,35 @@ LUA_SPEC = TreeSitterLangSpec(
     resolve_import=resolve_lua_import,
     log_patterns=(
         r"^\s*(?:print\(|io\.write)",
+    ),
+)
+
+LUAU_SPEC = TreeSitterLangSpec(
+    grammar="luau",
+    function_query="""
+        (function_declaration
+            name: [
+                (identifier)
+                (dot_index_expression)
+                (method_index_expression)
+            ] @name
+            body: (block) @body) @func
+    """,
+    comment_node_types=frozenset({"comment"}),
+    string_node_types=frozenset({"string"}),
+    # Constrained to require(): an unqualified "any call with a string
+    # argument" query would treat every print/warn/assert message as an import.
+    import_query="""
+        (function_call
+            name: (identifier) @_fn
+            arguments: (arguments
+                (string) @path)
+            (#eq? @_fn "require")) @import
+    """,
+    resolve_import=resolve_luau_import,
+    import_binding=luau_import_binding,
+    log_patterns=(
+        r"^\s*(?:print\(|warn\(|io\.write)",
     ),
 )
 
@@ -216,6 +247,13 @@ JS_SPEC = TreeSitterLangSpec(
     import_query="""
         (import_statement
             source: (string (string_fragment) @path)) @import
+        (call_expression
+            function: (identifier) @_require_fn
+            arguments: (arguments . (string (string_fragment) @path))
+            (#eq? @_require_fn "require")) @import
+        (call_expression
+            function: (import)
+            arguments: (arguments . (string (string_fragment) @path))) @import
     """,
     resolve_import=resolve_js_import,
     class_query="""
@@ -244,6 +282,13 @@ TYPESCRIPT_SPEC = TreeSitterLangSpec(
     import_query="""
         (import_statement
             source: (string (string_fragment) @path)) @import
+        (call_expression
+            function: (identifier) @_require_fn
+            arguments: (arguments . (string (string_fragment) @path))
+            (#eq? @_require_fn "require")) @import
+        (call_expression
+            function: (import)
+            arguments: (arguments . (string (string_fragment) @path))) @import
     """,
     resolve_import=resolve_js_import,
     class_query="""
