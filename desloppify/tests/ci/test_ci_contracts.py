@@ -63,8 +63,8 @@ def test_ci_workflow_jobs_are_bound_to_make_targets() -> None:
         assert any(expected_cmd in run for run in runs), (
             f"{job_name} must execute `{expected_cmd}` for local/CI parity."
         )
-        assert any(step.get("uses") == "actions/setup-python@v5" for step in job["steps"]), (
-            f"{job_name} should use actions/setup-python@v5."
+        assert any(step.get("uses") == "actions/setup-python@v7" for step in job["steps"]), (
+            f"{job_name} should use actions/setup-python@v7."
         )
 
 
@@ -86,7 +86,7 @@ def test_integration_workflow_uses_deterministic_roslyn_path() -> None:
         job["env"]["DESLOPPIFY_TEST_CSHARP_ROSLYN_CMD"]
         == "python .github/scripts/roslyn_stub.py"
     )
-    assert any(step.get("uses") == "actions/setup-dotnet@v4" for step in job["steps"])
+    assert any(step.get("uses") == "actions/setup-dotnet@v6" for step in job["steps"])
     assert any("make integration-roslyn" in run for run in _run_commands(job))
 
 

@@ -344,6 +344,9 @@ def test_backend_import_resolvers_cover_language_specific_paths(tmp_path: Path) 
     kotlin_file = tmp_path / "src" / "main" / "kotlin" / "com" / "acme" / "Feature.kt"
     kotlin_file.parent.mkdir(parents=True, exist_ok=True)
     kotlin_file.write_text("class Feature\n", encoding="utf-8")
+    # JVM source roots are memoized per scan root; the earlier java resolution
+    # cached roots before this kotlin dir existed.
+    resolver_cache_mod.discover_jvm_source_roots.cache_clear()
     assert backend_mod.resolve_kotlin_import("com.acme.Feature", "", str(tmp_path)) == str(kotlin_file)
 
     include_file = tmp_path / "include" / "shared.h"

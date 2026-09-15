@@ -75,7 +75,18 @@ def _is_implicitly_used(name: str, body: str, spec: TreeSitterLangSpec) -> bool:
     build. ``spec.implicit_import_uses`` declares those conventions per language.
     """
     # getattr keeps duck-typed spec stubs (used in tests) working.
-    for name_pattern, body_pattern in getattr(spec, "implicit_import_uses", ()):
+    implicit_uses = getattr(spec, "implicit_import_uses", ())
+    legacy_implicit_names = getattr(spec, "implicit_import_names", ())
+    covered_by_patterns = any(
+        re.search(name_pattern, name) for name_pattern, _body_pattern in implicit_uses
+    )
+    if (
+        legacy_implicit_names
+        and name in legacy_implicit_names
+        and not covered_by_patterns
+    ):
+        return True
+    for name_pattern, body_pattern in implicit_uses:
         if re.search(name_pattern, name) and re.search(body_pattern, body):
             return True
     return False
@@ -128,12 +139,26 @@ def detect_unused_imports(
             if not raw_path:
                 continue
 
+            binding_name: str | None = None
+
             # Go blank (`_ "pkg"`) and dot (`. "pkg"`) imports are never
             # "unused" by design: blank imports exist purely for their
             # init() side effects, and dot imports inject every exported
             # name into scope with no single identifier to search for.
             if spec.grammar == "go" and _is_go_blank_or_dot_import(import_node):
                 continue
+
+            # Language-specific import bindings (Luau require, etc.) give the
+            # real local name instead of a module-path guess.
+            import_binding = getattr(spec, "import_binding", None)
+            if import_binding is not None:
+                binding = import_binding(import_node)
+                if binding is None:
+                    continue
+                binding_name = binding.name
+                # Search outside the binding statement, not merely outside the
+                # call: the declaration contains the name and would match it.
+                import_node = binding.statement
 
             # Get the import statement's line range so we can exclude it
             # from the search.
@@ -173,7 +198,7 @@ def detect_unused_imports(
             if alias_name is None and spec.grammar == "go":
                 name = _extract_go_package_name(raw_path)
             else:
-                name = alias_name or _extract_import_name(raw_path)
+                name = binding_name or alias_name or _extract_import_name(raw_path)
             if not name:
                 continue
 

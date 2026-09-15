@@ -178,7 +178,7 @@ def test_codex_batch_command_uses_sanitized_reasoning_effort(monkeypatch, tmp_pa
     assert any(c.endswith("codex") or "codex" in c for c in command[:3])
     assert "exec" in command
     assert "--ephemeral" in command
-    assert 'model_reasoning_effort="high"' in command
+    assert "model_reasoning_effort=high" in command
     assert str(tmp_path) in command
 
     monkeypatch.setenv("DESLOPPIFY_CODEX_REASONING_EFFORT", "invalid")
@@ -187,7 +187,7 @@ def test_codex_batch_command_uses_sanitized_reasoning_effort(monkeypatch, tmp_pa
         repo_root=tmp_path,
         output_file=tmp_path / "out.json",
     )
-    assert 'model_reasoning_effort="low"' in command
+    assert 'model_reasoning_effort=low' in command
 
 
 def test_codex_batch_command_uses_sandbox_env_override(monkeypatch, tmp_path: Path) -> None:

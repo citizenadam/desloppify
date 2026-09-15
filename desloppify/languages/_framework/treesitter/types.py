@@ -36,6 +36,11 @@ class TreeSitterLangSpec:
     # ``var x by remember { ... }`` but "getValue" is never written out.
     implicit_import_uses: tuple[tuple[str, str], ...] = ()
 
+    # Legacy set form of the above: names treated as implicitly used without a
+    # body pattern. Kept for backward compatibility with spec definitions that
+    # predate the (name_pattern, body_pattern) form.
+    implicit_import_names: frozenset[str] = frozenset()
+
     log_patterns: tuple[str, ...] = (
         r"^\s*(?:fmt\.Print|log\.)",
         r"^\s*(?:println!|eprintln!|dbg!)",

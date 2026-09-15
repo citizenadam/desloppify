@@ -65,13 +65,16 @@ def build_execution_queue(
         plan=_queue_plan_from_options(options),
         target_strict=_subjective_threshold(state),
     )
+    # An explicitly supplied option threshold wins; otherwise honor the
+    # configured target carried by the context.
+    resolved_threshold = (
+        options.subjective_threshold
+        if options.subjective_threshold != 100.0
+        else ctx.target_strict
+    )
     return _build_work_queue_with_visibility(
         state,
-        options=replace(
-            options,
-            context=ctx,
-            subjective_threshold=ctx.target_strict,
-        ),
+        options=replace(options, context=ctx, subjective_threshold=resolved_threshold),
         visibility=QueueVisibility.EXECUTION,
     )
 
@@ -88,13 +91,14 @@ def build_backlog_queue(
         plan=_queue_plan_from_options(options),
         target_strict=_subjective_threshold(state),
     )
+    resolved_threshold = (
+        options.subjective_threshold
+        if options.subjective_threshold != 100.0
+        else ctx.target_strict
+    )
     return _build_work_queue_with_visibility(
         state,
-        options=replace(
-            options,
-            context=ctx,
-            subjective_threshold=ctx.target_strict,
-        ),
+        options=replace(options, context=ctx, subjective_threshold=resolved_threshold),
         visibility=QueueVisibility.BACKLOG,
     )
 
