@@ -16,7 +16,9 @@ from desloppify.engine._plan.constants import (
     is_synthetic_id,
 )
 from desloppify.engine._plan.operations.meta import append_log_entry
-from desloppify.engine._plan.policy.stale import triage_open_review_ids
+from desloppify.engine._plan.operations.queue import remove_queue_entries
+from desloppify.engine._plan.policy.stale import open_review_ids, triage_open_review_ids
+from desloppify.engine._plan.promoted_ids import has_promoted_execution_candidate
 from desloppify.engine._plan.policy.subjective import compute_subjective_visibility
 from desloppify.engine._plan.refresh_lifecycle import (
     _set_lifecycle_phase,
@@ -35,6 +37,7 @@ from desloppify.engine._plan.sync.workflow import (
 )
 from desloppify.engine._plan.triage.protection import clear_protected_triage_artifacts
 from desloppify.engine._plan.triage.snapshot import build_triage_snapshot
+from desloppify.engine._state.issue_semantics import is_assessment_request
 from desloppify.state_scoring import score_snapshot
 
 _SCAN_PHASE_WORKFLOW_IDS = {
@@ -339,9 +342,31 @@ def reconcile_plan(
     # Migration cleanup: prune stale subjective items from queue_order
     # left by the old mid-cycle re-injection bug.  With boundary-only sync
     # they won't be re-added, so they just block phase resolution.
-    _migrate_prune_stale_subjective(plan)
-    preserve_triaged_execution = not force_rescan and has_live_triaged_execution_board(
-        plan, state
+    result.queue_entries_pruned = [
+        *_migrate_prune_stale_subjective(plan),
+        *_prune_execute_synthetic_queue_entries(
+            plan,
+            force_rescan=force_rescan,
+        ),
+        *_prune_stale_review_queue_entries(plan, state),
+    ]
+    if result.queue_entries_pruned:
+        _log_gate_changes(
+            plan,
+            "prune_stale_queue_entries",
+            {"pruned": list(result.queue_entries_pruned)},
+        )
+
+    preserve_triaged_execution = (
+        not force_rescan
+        and (
+            has_live_triaged_execution_board(plan, state)
+            or _persisted_execute_board_active(
+                plan,
+                state,
+                force_rescan=force_rescan,
+            )
+        )
     )
 
     policy = compute_subjective_visibility(
@@ -360,6 +385,7 @@ def reconcile_plan(
             _log_gate_changes(plan, "sync_subjective", {"changes": True})
 
     # Auto-clustering and heavier workflow reconciliation only runs at queue boundaries.
+    at_queue_boundary = live_planned_queue_empty(plan) or force_rescan
     if at_queue_boundary:
         result.auto_cluster_changes = int(
             auto_cluster_issues(

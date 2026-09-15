@@ -122,7 +122,12 @@ class DictKeyVisitor(ast.NodeVisitor):
         self._check_subscript_write(node.target, node.lineno)
         self.generic_visit(node)
 
-    def _check_dict_creation(self, name: str, value: ast.expr, line: int) -> None:
+    def _check_dict_creation(
+        self,
+        name: str,
+        value: ast.expr,
+        line: int,
+    ) -> TrackedDict | None:
         """Track aliases and newly created dict expressions."""
 
         source_name = _get_name(value)
@@ -132,11 +137,11 @@ class DictKeyVisitor(ast.NodeVisitor):
                 self._current_scope()[name] = tracked
                 if name.startswith("self.") and self._in_init_or_setup:
                     self._class_dicts[name] = tracked
-                return
+                return tracked
 
         provenance = dict_source_provenance(self, value)
         if provenance is None:
-            return
+            return None
         initial_keys, keyset_is_open = provenance
 
         if isinstance(value, ast.Dict):
@@ -167,6 +172,7 @@ class DictKeyVisitor(ast.NodeVisitor):
         # Store as class dict if it's self.x
         if name.startswith("self.") and self._in_init_or_setup:
             self._class_dicts[name] = td
+        return td
 
     def _check_subscript_write(self, target: ast.expr, line: int):
         """Handle d["key"] = val or d["key"] += val."""

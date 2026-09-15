@@ -536,8 +536,8 @@ def test_graph_edges_survive_a_relative_file_list(monkeypatch, tmp_path: Path) -
         lambda filepath, *_a, **_k: (b"", SimpleNamespace(root_node=filepath)),
     )
     matches = {
-        "src/main.js": [(0, {"path": FakeNode("string", text="'./support.js'")})],
-        "src/support.js": [],
+        str(source_file): [(0, {"path": FakeNode("string", text="'./support.js'")})],
+        str(dep_file): [],
     }
     monkeypatch.setattr(graph_mod, "_run_query", lambda _query, root: matches[root])
     monkeypatch.setattr(graph_mod, "_unwrap_node", lambda node: node)

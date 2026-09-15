@@ -112,7 +112,6 @@ def _read_stage_output(output_file: Path) -> str:
 
 def _write_desloppify_cli_helper(
     run_dir: Path,
-    *,
     state_path: Path | None = None,
 ) -> Path:
     """Create an exact CLI wrapper so codex subagents use this checkout + interpreter."""

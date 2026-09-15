@@ -5,7 +5,7 @@ from __future__ import annotations
 import shutil
 
 from desloppify.base.config import load_config
-from desloppify.base.discovery.source import collect_exclude_dirs
+from desloppify.base.discovery.source import collect_exclude_dirs, get_exclusions
 from desloppify.languages._framework.base.types import (
     DetectorCoverageStatus,
     LangSecurityResult,

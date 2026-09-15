@@ -16,9 +16,11 @@ from desloppify.app.commands.resolve.cmd import cmd_resolve
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
 from desloppify.base.output.terminal import colorize
 from desloppify.engine._plan.triage.protection import protected_review_issue_ids
+from desloppify.engine._plan.operations.meta import append_log_entry
 from desloppify.engine._work_queue.core import ATTEST_EXAMPLE
 from desloppify.engine.plan_state import (
     load_plan,
+    save_plan,
 )
 
 from .resolve_helpers import (

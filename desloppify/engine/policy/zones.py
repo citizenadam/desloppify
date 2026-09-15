@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Callable
+from pathlib import PurePath
 from dataclasses import dataclass, field
 from enum import Enum
 from fnmatch import fnmatch

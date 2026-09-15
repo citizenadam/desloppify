@@ -19,6 +19,7 @@ from ..validation.organize_policy import (
     _validate_organize_against_ledger_or_error,
     validate_backlog_promotions_executed,
 )
+from .helpers import triage_scoped_plan
 from ..validation.stage_policy import (
     ReflectAutoConfirmDeps,
     auto_confirm_reflect_for_organize,

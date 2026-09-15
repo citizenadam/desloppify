@@ -157,9 +157,35 @@ class TestAutoStartTriage:
         _patch_triage(monkeypatch, plan, state)
 
         long_report = (
-            "This is a thorough analysis of the naming and architecture issues. "
-            "The main themes are inconsistent naming conventions across modules, "
-            "and some architectural coupling between components."
+            "- hash: r1\n"
+            "  verdict: genuine\n"
+            "  verdict_reasoning: test.py line 3 uses an inconsistent naming convention.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: Rename to match the module convention\n"
+            "\n"
+            "- hash: r2\n"
+            "  verdict: genuine\n"
+            "  verdict_reasoning: test.py line 11 duplicates the helper below.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: Extract a shared helper\n"
+            "\n"
+            "- hash: r3\n"
+            "  verdict: false-positive\n"
+            "  verdict_reasoning: test.py line 19 already uses the constant.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: No action needed\n"
+            "\n"
+            "- hash: r4\n"
+            "  verdict: genuine\n"
+            "  verdict_reasoning: test.py line 27 hard-codes a value twice.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: Hoist the value to a constant\n"
+            "\n"
+            "- hash: r5\n"
+            "  verdict: false-positive\n"
+            "  verdict_reasoning: test.py line 35 is covered by the integration test.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: No action needed\n"
         )
         args = _fake_args(stage="observe", report=long_report)
         triage_mod.cmd_plan_triage(args)

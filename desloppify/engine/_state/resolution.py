@@ -148,7 +148,15 @@ def resolve_issues(
             "detail": copy.deepcopy(original.get("detail", {})),
         }
 
-    status_filter = "all" if status in {"open", "fixed"} else "open"
+    status_filter = (
+        "all"
+        if status == "open"
+        or (
+            status == "fixed"
+            and bool(attestation)
+        )
+        else "open"
+    )
     for issue in match_issues(state, pattern, status_filter=status_filter):
         previous_status = str(issue.get("status", "open")).strip() or "open"
         if status == "fixed" and previous_status not in {"open", "auto_resolved"}:

@@ -129,14 +129,17 @@ def test_live_planned_queue_empty_ignores_synthetic_items() -> None:
     "synthetic_id",
     ["subjective::design_coherence", "strategy::review-refresh"],
 )
-def test_executable_objective_ids_ignore_synthetic_only_queue(
+def test_executable_objective_ids_gated_by_synthetic_only_queue(
     synthetic_id: str,
 ) -> None:
     plan = empty_plan()
     plan["queue_order"] = [synthetic_id]
     objective_ids = {"smells::src/a.py::complexity", "unused::src/b.py::symbol"}
 
-    assert executable_objective_ids(objective_ids, plan) == objective_ids
+    # Any queue entry — including synthetic review/workflow/triage items —
+    # makes execution queue-driven: objectives stay in backlog until they
+    # are explicitly queued.
+    assert executable_objective_ids(objective_ids, plan) == set()
 
 
 def test_live_planned_queue_empty_ignores_skipped_items() -> None:

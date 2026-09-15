@@ -122,7 +122,19 @@ class TestObserveLogging:
 
         _patch_triage(monkeypatch, plan, state)
 
-        report = "A sufficiently long analysis of themes and root causes across the codebase with contradictions noted"
+        report = (
+            "- hash: r1\n"
+            "  verdict: genuine\n"
+            "  verdict_reasoning: test.py line 3 has the naming inconsistency.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: Apply the rename\n"
+            "\n"
+            "- hash: r2\n"
+            "  verdict: genuine\n"
+            "  verdict_reasoning: test.py line 11 duplicates the helper.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: Extract the helper\n"
+        )
         args = _fake_args(stage="observe", report=report)
         triage_mod.cmd_plan_triage(args)
         assert "triage_observe" in _log_actions(plan)

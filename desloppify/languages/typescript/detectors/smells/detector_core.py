@@ -114,6 +114,24 @@ def _find_opening_brace_line(
     return None
 
 
+def _previous_code_char(content: str, pos: int) -> str:
+    cursor = pos - 1
+    while cursor >= 0:
+        if not content[cursor].isspace():
+            return content[cursor]
+        cursor -= 1
+    return ""
+
+
+def _next_code_char(content: str, pos: int) -> str:
+    cursor = pos + 1
+    while cursor < len(content):
+        if not content[cursor].isspace():
+            return content[cursor]
+        cursor += 1
+    return ""
+
+
 def _find_function_body_brace(content: str) -> int | None:
     """Find the function body ``{``, ignoring braces in params/defaults/types."""
     paren_depth = 0

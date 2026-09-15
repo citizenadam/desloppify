@@ -207,8 +207,35 @@ class TestJumpBackObserve:
         _patch_triage(monkeypatch, plan, state)
 
         new_report = (
-            "Completely revised observation after discovering additional naming "
-            "patterns in the codebase that change the analysis significantly."
+            "- hash: r1\n"
+            "  verdict: genuine\n"
+            "  verdict_reasoning: test.py line 3 needs the naming change after re-reading.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: Apply the rename\n"
+            "\n"
+            "- hash: r2\n"
+            "  verdict: genuine\n"
+            "  verdict_reasoning: test.py line 11 shares the duplicated helper.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: Extract the shared helper\n"
+            "\n"
+            "- hash: r3\n"
+            "  verdict: false-positive\n"
+            "  verdict_reasoning: test.py line 19 uses the existing constant.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: No action needed\n"
+            "\n"
+            "- hash: r4\n"
+            "  verdict: genuine\n"
+            "  verdict_reasoning: test.py line 27 repeats the literal value.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: Hoist to a constant\n"
+            "\n"
+            "- hash: r5\n"
+            "  verdict: false-positive\n"
+            "  verdict_reasoning: test.py line 35 is covered by the integration test.\n"
+            "  files_read: [test.py]\n"
+            "  recommendation: No action needed\n"
         )
         args = _fake_args(stage="observe", report=new_report)
         triage_mod.cmd_plan_triage(args)

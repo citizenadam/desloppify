@@ -14,6 +14,7 @@ import desloppify.engine.planning.scan as plan_scan_mod
 import desloppify.engine.planning.select as plan_select_mod
 from desloppify.engine._work_queue.core import QueueBuildOptions
 from desloppify.engine.policy.zones import FileZoneMap, Zone, ZoneRule
+from desloppify.engine._scoring.detection import detector_pass_rate
 
 
 class _Phase:

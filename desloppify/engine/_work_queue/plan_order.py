@@ -232,21 +232,23 @@ def collapse_clusters(items: list[WorkQueueItem], plan: dict) -> list[WorkQueueI
             cname, members, clusters.get(cname, {})
         )
 
-    # Collect manual cluster names in explicit queue order (for front-insertion).
-    # Cluster mapping insertion order is incidental: ``plan cluster reorder``
-    # moves member IDs in ``queue_order`` and expects collapsed manual clusters
-    # to follow that same order.
+    # Preserve every visible manual cluster at the front, whether it has one
+    # member or enough members to collapse into a meta-item. A cluster's
+    # explicit priority is the authoritative execution order; falling back to
+    # its first ``queue_order`` position preserves the plan-order behavior for
+    # historical clusters that predate priority metadata.
+    cluster_insertion_positions = {
+        name: index for index, name in enumerate(clusters)
+    }
     queue_order = plan.get("queue_order", [])
     queue_positions: dict[str, int] = {}
     for position, issue_id in enumerate(queue_order):
         queue_positions.setdefault(issue_id, position)
-    manual_names = [
-        name
-        for name in clusters
-        if not clusters[name].get("auto") and name in meta_items
-    ]
-    manual_names.sort(
-        key=lambda name: min(
+
+    def _manual_cluster_sort_key(name: str) -> tuple[int, int, int]:
+        priority = clusters[name].get("priority")
+        normalized_priority = priority if isinstance(priority, int) else 1_000_000
+        first_queue_position = min(
             (
                 queue_positions[member["id"]]
                 for member in cluster_members[name]
@@ -254,7 +256,18 @@ def collapse_clusters(items: list[WorkQueueItem], plan: dict) -> list[WorkQueueI
             ),
             default=len(queue_order),
         )
-    )
+        return (
+            normalized_priority,
+            first_queue_position,
+            cluster_insertion_positions[name],
+        )
+
+    manual_candidates = [
+        name
+        for name, cluster in clusters.items()
+        if not cluster.get("auto") and name in cluster_members
+    ]
+    manual_names = sorted(manual_candidates, key=_manual_cluster_sort_key)
 
     # Walk in order: replace first auto-cluster member with meta-item,
     # skip subsequent members.  Manual cluster members are always skipped

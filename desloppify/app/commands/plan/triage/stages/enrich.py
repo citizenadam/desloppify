@@ -11,6 +11,7 @@ from desloppify.base.output.terminal import colorize
 from desloppify.base.output.user_message import print_user_message
 from desloppify.engine.plan_triage import compute_triage_progress
 
+from ..review_coverage import triage_open_review_ids_from_state
 from .records import record_enrich_stage, resolve_reusable_report
 from .helpers import active_triage_issue_scope
 from ..validation.enrich_quality import evaluate_enrich_quality

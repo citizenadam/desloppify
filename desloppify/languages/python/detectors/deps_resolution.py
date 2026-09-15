@@ -107,24 +107,63 @@ def resolve_relative_import(module_path: str, source_dir: Path) -> str | None:
     return try_resolve_path(target_base)
 
 
-def resolve_absolute_import(module_path: str, scan_root: Path) -> str | None:
-    """Resolve an absolute import within scan root first, then project root.
+def candidate_source_roots(scan_root: Path) -> list[Path]:
+    """Return the roots an absolute import may resolve against, in priority order.
 
-    Each root is probed directly (``<root>/<parts>``) and through the
-    conventional src layout (``<root>/src/<parts>``), so packages living
-    under ``src/<package>/`` resolve without special configuration. The
-    scan root is probed before the project root, keeping resolution pinned
-    to the scanned project in monorepos with sibling projects.
+    The scan root and the project root are each tried with and without a ``src``
+    prefix, so absolute imports resolve under both the flat and ``src`` layouts.
+    Flat roots are tried before ``src`` roots, so this is strictly additive: any
+    import that resolved before resolves to the same file, and only
+    previously-unresolved ``src``-layout imports gain an edge. Duplicate roots
+    (common when the scan root is the project root) are collapsed.
+    """
+    flat_roots = [scan_root.resolve(), get_project_root()]
+    roots: list[Path] = []
+    for candidate in (*flat_roots, *(root / "src" for root in flat_roots)):
+        if candidate not in roots:
+            roots.append(candidate)
+    return roots
+
+
+def resolve_absolute_import(
+    module_path: str,
+    scan_root: Path,
+    source_dir: Path | None = None,
+) -> str | None:
+    """Resolve an absolute import within scan root, source-file package roots, then project root.
+
+    Each candidate source root (see :func:`candidate_source_roots`) is tried in
+    priority order, covering flat and ``src`` layouts, then each ancestor of the
+    importing file up to the scan root (service-rooted absolute imports in
+    multi-root repositories), then any pyproject-declared source roots
+    (``pythonpath``/``python_source_roots``/``mypy_path``).
     """
     parts = module_path.split(".")
-    for root in (scan_root.resolve(), get_project_root()):
-        for base in (root, root / "src"):
-            target_base = base
-            for part in parts:
-                target_base = target_base / part
-            resolved = try_resolve_path(target_base)
-            if resolved:
-                return resolved
+    scan_base = scan_root.resolve()
+    candidates: list[Path] = [scan_base, scan_base / "src"]
+    if source_dir is not None:
+        anchor = source_dir.resolve()
+        while True:
+            if anchor not in candidates:
+                candidates.append(anchor)
+            if anchor == scan_base or anchor.parent == anchor:
+                break
+            anchor = anchor.parent
+    project_root = get_project_root()
+    if project_root not in candidates:
+        candidates.append(project_root)
+    candidates.append(project_root / "src")
+    for declared in declared_source_roots(str(project_root)):
+        root = project_root / declared
+        if root not in candidates:
+            candidates.append(root)
+    for base in candidates:
+        target_base = base
+        for part in parts:
+            target_base = target_base / part
+        resolved = try_resolve_path(target_base)
+        if resolved:
+            return resolved
     return None
 
 

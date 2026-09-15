@@ -143,7 +143,6 @@ def collect_exclude_dirs(
     tools (e.g. bandit) are handed absolute scan targets, so relative exclude
     paths would never match and the excludes would be silently ignored.
     """
-    scan_root = scan_root.resolve()
     resolved_exclusions = (
         extra_exclusions
         if extra_exclusions is not None

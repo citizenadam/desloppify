@@ -28,6 +28,7 @@ from desloppify.engine._plan.refresh_lifecycle import (
 from desloppify.engine._plan.schema import (
     executable_objective_ids as _executable_objective_ids,
 )
+from desloppify.engine._plan.promoted_ids import has_promoted_execution_candidate
 from desloppify.engine._plan.schema import (
     live_planned_queue_ids as _live_planned_queue_ids,
 )
@@ -177,15 +178,33 @@ def _merge_execution_candidates(
     plan: dict | None,
     review_issue_ids: set[str],
     assessment_request_ids: set[str],
+    executable_review_ids: set[str] | None = None,
 ) -> tuple[list[WorkQueueItem], list[WorkQueueItem]]:
     """Merge queue-owned execution items with objective defaults."""
     explicit_queue_ids = _live_planned_queue_ids(plan)
+    review_board_active = bool(executable_review_ids) and bool(
+        ((plan or {}).get("epic_triage_meta") or {}).get("last_completed_at")
+    )
     queued_non_review_items = [
         item
         for item in all_issue_items
         if item.get("id", "") in explicit_queue_ids
         and item.get("id", "") not in assessment_request_ids
+        and not (
+            review_board_active
+            and item.get("id", "") not in executable_review_ids
+        )
     ]
+
+    # A completed triage handoff owns execution: queued objective work stays
+    # in backlog until the board drains, so mechanical defects don't leak into
+    # the review queue.
+    if review_board_active:
+        explicit_objective_items = [
+            item
+            for item in explicit_objective_items
+            if item.get("id", "") in executable_review_ids
+        ]
 
     execution_candidates: list[WorkQueueItem] = []
     seen_execution_ids: set[str] = set()
@@ -304,7 +323,7 @@ def _phase_for_snapshot(
     # during postflight remains backlog-only until postflight ends; queued
     # review findings still belong to the review postflight phase.
     suppress_postflight_signals = has_execution and (
-        persisted_phase == "execute" or raw_phase is None
+        persisted_phase == "execute" or raw_phase == "execute" or raw_phase is None
     )
     prefer_scan = raw_phase == "execute" and not has_execution
     if suppress_postflight_signals:
@@ -489,6 +508,9 @@ def _build_item_partitions(
         plan=effective_plan,
         review_issue_ids=review_issue_ids,
         assessment_request_ids=assessment_request_ids,
+        executable_review_ids={
+            str(item.get("id", "")) for item in executable_review_items
+        },
     )
 
     initial_review_items, subjective_postflight_items = _subjective_partitions(

@@ -14,11 +14,14 @@ from desloppify.engine._plan.constants import (
     WORKFLOW_SCORE_CHECKPOINT_ID,
     is_synthetic_id,
 )
+from desloppify.engine._plan.operations.queue import remove_queue_entries
 from desloppify.engine._plan.policy.stale import triage_review_issue_snapshot_hash
 from desloppify.engine._plan.refresh_lifecycle import (
     current_lifecycle_phase,
+    has_live_triaged_execution_board,
     mark_postflight_scan_completed,
 )
+from desloppify.engine._plan.sync import reconcile_plan
 from desloppify.engine._state.progression import (
     append_progression_event,
     build_triage_complete_event,
@@ -236,6 +239,16 @@ def apply_completion(
     _restore_postflight_scan_completion_for_current_scan(
         plan=plan,
         state=state,
+    )
+    # Completing triage hands off the board: stale synthetic planning residue
+    # (subjective::/strategy:: markers) must not keep polluting the queue.
+    remove_queue_entries(
+        plan,
+        [
+            issue_id
+            for issue_id in plan["queue_order"]
+            if isinstance(issue_id, str) and is_synthetic_id(issue_id)
+        ],
     )
     if has_live_triaged_execution_board(plan, state):
         reconcile_plan(

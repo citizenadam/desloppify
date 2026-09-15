@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from desloppify.base.output.terminal import colorize
+from desloppify.base.subjective_dimension_catalog import DISPLAY_NAMES
 from desloppify.engine._plan.triage.protection import (
     clear_protected_triage_artifacts,
     protected_review_issue_ids,

@@ -8,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from desloppify.base.discovery.file_paths import resolve_scan_file
+from desloppify.base.discovery.file_paths import resolve_path, resolve_scan_file
 
 from ..analysis.extractors import _get_parser, _make_query, _run_query, _unwrap_node
 from .cache import get_or_parse_tree
@@ -68,16 +68,22 @@ def ts_build_dep_graph(
     parser, language = _get_parser(spec.grammar)
     query = _make_query(language, spec.import_query)
 
-    scan_path = str(path.resolve())
-    file_set = set(file_list)
-    # `resolve_import` returns a path in the same space as the source file it
-    # was given, which is not necessarily the space `file_list` uses. Index by
-    # absolute path so either space matches.
-    abs_index = {os.path.abspath(f): f for f in file_list}
+    scan_path = path.resolve()
+    file_paths_by_key = {filepath: _source_path(filepath) for filepath in file_list}
+    file_keys_by_path: dict[str, str] = {}
+    for filepath, resolved_path in file_paths_by_key.items():
+        identity = _path_identity(resolved_path)
+        previous_key = file_keys_by_path.get(identity)
+        if previous_key is not None and previous_key != filepath:
+            raise ValueError(
+                "Tree-sitter dependency graph received duplicate paths "
+                f"{previous_key!r} and {filepath!r} for {resolved_path}"
+            )
+        file_keys_by_path[identity] = filepath
     graph: dict[str, dict[str, Any]] = {}
 
     # Initialize all files in the graph.
-    for f in absolute_file_list:
+    for f in file_list:
         graph[f] = {"imports": set(), "importers": set()}
 
     for filepath in file_list:
@@ -120,20 +126,15 @@ def ts_build_dep_graph(
             if resolved is None:
                 continue
 
-            # Match the resolved path against the file set, whichever path
-            # space each happens to use.
-            if resolved in file_set:
-                target: str | None = resolved
-            else:
-                target = abs_index.get(os.path.abspath(resolved))
-                if target is None:
-                    # Fall back to interpreting it as scan_path-relative.
-                    candidate = os.path.normpath(os.path.join(scan_path, resolved))
-                    target = candidate if candidate in file_set else abs_index.get(candidate)
+            # Match by filesystem identity, then store the caller's original key.
+            resolved_key = file_keys_by_path.get(
+                _path_identity(_import_path(resolved, scan_path))
+            )
+            if resolved_key is None:
+                continue
 
             # Only track edges within the scanned file set.
-            if target is None:
-                continue
+            target = resolved_key
 
             graph[filepath]["imports"].add(target)
             if target in graph:
@@ -146,53 +147,6 @@ def ts_build_dep_graph(
 
     return graph
 
-
-def _add_framework_importers(
-    *,
-    graph: dict[str, dict[str, Any]],
-    file_set: set[str],
-    framework_extensions: tuple[str, ...],
-    framework_file_finder: Callable[[Path], list[str]] | None,
-    spec: TreeSitterLangSpec,
-    scan_path: str,
-    path: Path,
-) -> None:
-    """Add framework files (.astro/.svelte/.vue) as importer edges on graph nodes.
-
-    Framework files carry their imports in fenced or top-level sections that
-    the host language's tree-sitter grammar can't parse cleanly. We extract
-    import specifiers with a regex and resolve them via the spec's own
-    ``resolve_import`` so framework-file imports behave exactly like
-    host-language imports — only edges into ``file_set`` are kept, and the
-    framework files themselves are not added as graph nodes.
-    """
-    if framework_file_finder is not None:
-        fw_files = framework_file_finder(path)
-    else:
-        fw_files = find_source_files(path, list(framework_extensions))
-    if not fw_files:
-        return
-
-    # grep_files yields one row per matched line, so resolving each filepath
-    # to absolute inside the loop would re-do the work N times per file.
-    # Build the abs-path map once up front.
-    fw_abs = {f: resolve_path(f) for f in fw_files}
-
-    for filepath, _lineno, line in grep_files(
-        r"""(?:\bfrom\s+['"]|\bimport\s+['"])""", fw_files
-    ):
-        importer_abs = fw_abs[filepath]
-        cleaned_line = _strip_inline_comments(line)
-        for match in _FRAMEWORK_IMPORT_RE.finditer(cleaned_line):
-            import_text = match.group(1)
-            resolved = spec.resolve_import(import_text, importer_abs, scan_path)
-            if resolved is None:
-                continue
-            if not os.path.isabs(resolved):
-                resolved = os.path.normpath(os.path.join(scan_path, resolved))
-            if resolved not in file_set:
-                continue
-            graph[resolved]["importers"].add(importer_abs)
 
 
 def make_ts_dep_builder(
