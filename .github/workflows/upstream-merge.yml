@@ -1,0 +1,97 @@
+name: Auto-merge upstream PRs
+
+# Merges new open pull requests from the upstream repo
+# (https://github.com/peteromallet/desloppify) into this fork's main branch.
+#
+# Behavior matches the fork's existing manual history:
+#   - Every open upstream PR (drafts included) whose head commit is not yet
+#     reachable from main is merged with commit message "Merge upstream PR #NNN".
+#   - On conflicts the fork's already-integrated version wins
+#     ("resolved conflicts using ours"), exactly like the manual merges.
+#
+# No secrets required: the upstream repo is public (plain curl for the PR list,
+# plain git fetch for PR heads) and pushes use the repo-scoped GITHUB_TOKEN.
+
+on:
+  schedule:
+    # Every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch upstream PR heads
+        run: |
+          git remote add upstream https://github.com/peteromallet/desloppify.git
+          git fetch upstream '+refs/pull/*/head:refs/remotes/upstream-pr/*'
+
+      - name: Determine pending PRs
+        id: pending
+        run: |
+          curl -fsS "https://api.github.com/repos/peteromallet/desloppify/pulls?state=open&per_page=100&page=1" -o /tmp/prs_page1.json
+          python3 - <<'EOF'
+          import json, subprocess
+
+          prs = json.load(open("/tmp/prs_page1.json"))
+          if not isinstance(prs, list):
+              raise SystemExit(f"Unexpected API response: {str(prs)[:200]}")
+
+          pending = []
+          for pr in prs:
+              num, sha = pr["number"], pr["head"]["sha"]
+              r = subprocess.run(
+                  ["git", "merge-base", "--is-ancestor", sha, "refs/remotes/origin/main"],
+                  capture_output=True,
+              )
+              if r.returncode != 0:
+                  pending.append((num, sha))
+
+          pending.sort()  # ascending PR number, matches manual history
+          with open("/tmp/pending.txt", "w") as f:
+              for num, sha in pending:
+                  f.write(f"{num} {sha}\n")
+          print(f"{len(pending)} new upstream PR(s) to merge")
+          for num, _ in pending:
+              print(f"  PR #{num}")
+          EOF
+
+      - name: Merge new PRs
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          merged=0
+          while read -r num sha; do
+            msg="Merge upstream PR #${num}"
+            if git merge --no-edit -m "$msg" "$sha" 2>/dev/null; then
+              echo "Merged PR #${num} (clean)"
+            else
+              git merge --abort
+              git merge -X ours --no-edit -m "$msg (resolved conflicts using ours)" "$sha"
+              echo "Merged PR #${num} (conflicts resolved using ours)"
+            fi
+            merged=$((merged + 1))
+          done < /tmp/pending.txt
+          echo "merged=$merged" >> "$GITHUB_OUTPUT"
+          if [ "$merged" -gt 0 ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push to main
+        if: steps.merge.outputs.changed == 'true'
+        run: git push origin main
