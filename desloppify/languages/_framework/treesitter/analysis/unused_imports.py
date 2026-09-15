@@ -144,7 +144,9 @@ def detect_unused_imports(
             rest = source_text[:import_start] + source_text[import_end:]
 
             # Handle grouped/braced imports (e.g. Rust `use crate::module::{A, B}`).
-            grouped_names = _extract_grouped_import_names(raw_path)
+            grouped_names = (
+                [] if binding_name else _extract_grouped_import_names(raw_path)
+            )
             if grouped_names:
                 unused_names = [
                     n for n in grouped_names
@@ -674,7 +676,7 @@ def _extract_import_name(import_path: str) -> str:
 
     for ext in (".go", ".rs", ".rb", ".py", ".js", ".jsx", ".ts",
                 ".tsx", ".java", ".kt", ".cs", ".fs", ".ml",
-                ".ex", ".erl", ".hs", ".lua", ".zig", ".pm",
+                ".ex", ".erl", ".hs", ".lua", ".luau", ".zig", ".pm",
                 ".sh", ".pl", ".scala", ".swift", ".php",
                 ".dart", ".mjs", ".cjs", ".h", ".hh", ".hpp"):
         if candidate.endswith(ext):
