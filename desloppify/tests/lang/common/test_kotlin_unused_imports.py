@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import textwrap
 
+import pytest
+
+pytest.importorskip("tree_sitter_language_pack")
+
 
 def _detect(tmp_path, contents: str, name: str = "Screen.kt"):
     from desloppify.languages._framework.treesitter.analysis.unused_imports import (
