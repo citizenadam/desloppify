@@ -60,6 +60,9 @@ def test_codex_batch_command_on_windows_collapses_cmd_c(monkeypatch, tmp_path: P
     assert "exec" in inner
     assert "--ephemeral" in inner
     assert "review prompt" not in inner
+    assert "approval_policy=never" in inner
+    assert "model_reasoning_effort=low" in inner
+    assert '\\"never\\"' not in inner
     assert inner.endswith(" -")
 
 
