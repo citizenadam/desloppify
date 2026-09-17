@@ -9,10 +9,10 @@ from desloppify.base.scoring_constants import (
     HOLISTIC_MULTIPLIER,
 )
 from desloppify.engine._scoring.policy.core import (
-    FAILURE_STATUSES_BY_MODE,
     SCORING_MODES,
     ScoreMode,
     detector_policy,
+    is_failure,
 )
 from desloppify.engine._state.issue_semantics import is_scoring_excluded_detector
 from desloppify.engine._state.schema import Issue
@@ -91,13 +91,12 @@ def _file_based_failures_by_mode(
     accum: dict[ScoreMode, _ModeAccum] = {mode: _ModeAccum() for mode in SCORING_MODES}
 
     for issue in _iter_scoring_candidates(detector, issues, policy.excluded_zones):
-        status = issue.get("status", "open")
         holistic = issue.get("file") == "." and issue.get("detail", {}).get(
             "holistic"
         )
 
         for mode in SCORING_MODES:
-            if status not in FAILURE_STATUSES_BY_MODE[mode]:
+            if not is_failure(issue, mode):
                 continue
 
             if holistic:
@@ -160,10 +159,9 @@ def detector_stats_by_mode(
         for issue in _iter_scoring_candidates(
             detector, issues, policy.excluded_zones
         ):
-            status = issue.get("status", "open")
             weight = _issue_weight(issue, use_loc_weight=False)
             for mode in SCORING_MODES:
-                if status not in FAILURE_STATUSES_BY_MODE[mode]:
+                if not is_failure(issue, mode):
                     continue
                 issue_count[mode] += 1
                 weighted_failures[mode] += weight

@@ -177,6 +177,8 @@ def verify_disappeared(
     resolved = skipped_other_lang = resolved_out_of_scope = 0
     resolved_detectors: set[str] = set()
 
+    _backfill_resolution_kinds(existing)
+
     for issue_id, previous in existing.items():
         if semantic_correction_ids and issue_id in semantic_correction_ids:
             continue
@@ -237,6 +239,7 @@ def verify_disappeared(
             if zone_map and file_path and should_skip_issue(zone_map, file_path, detector):
                 previous["status"] = "auto_resolved"
                 previous["resolved_at"] = now
+                previous["resolution_kind"] = "zone_policy"
                 previous["note"] = f"Auto-resolved: zone policy now skips {detector} for this file"
                 resolved_detectors.add(detector or "unknown")
                 resolved += 1
@@ -244,6 +247,7 @@ def verify_disappeared(
             if file_deleted:
                 previous["status"] = "auto_resolved"
                 previous["resolved_at"] = now
+                previous["resolution_kind"] = "file_deleted"
                 previous["note"] = "Auto-resolved: source file no longer exists"
                 resolved_detectors.add(previous.get("detector", "unknown"))
                 resolved += 1
@@ -251,6 +255,7 @@ def verify_disappeared(
             if detector and confirmed_detectors is not None and detector in confirmed_detectors:
                 previous["status"] = "auto_resolved"
                 previous["resolved_at"] = now
+                previous["resolution_kind"] = None
                 previous["note"] = "Auto-resolved: absent from latest detector output"
                 resolved_detectors.add(detector)
                 resolved += 1
