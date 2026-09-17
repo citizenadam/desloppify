@@ -28,7 +28,10 @@ from desloppify.engine._plan.triage.prompt import (
     DismissedIssue,
     TriageResult,
 )
-from desloppify.engine._scoring.policy.core import FAILURE_STATUSES_BY_MODE
+from desloppify.engine._scoring.policy.core import (
+    FAILURE_STATUSES_BY_MODE,
+    is_failure,
+)
 from desloppify.engine.planning.render_sections import summary_lines
 
 # ---------------------------------------------------------------------------
@@ -146,6 +149,51 @@ class TestScoringPolicy:
         for mode, statuses in FAILURE_STATUSES_BY_MODE.items():
             assert "deferred" in statuses, f"deferred missing from {mode}"
             assert "triaged_out" in statuses, f"triaged_out missing from {mode}"
+
+
+class TestVerifiedAutoResolution:
+    """An auto-resolution the tool established itself is not strict debt.
+
+    `auto_resolved` fails strict because a finding that merely stopped
+    appearing may have been hidden rather than fixed. A deleted source file is
+    not that: it is checked on disk, it leaves nothing to fix or attest, and so
+    it can never reach `fixed` and never stops counting. Left in, strict decays
+    every time a codebase deletes dead code.
+    """
+
+    def test_inferred_auto_resolution_still_fails_strict(self):
+        issue = {"status": "auto_resolved"}
+        assert is_failure(issue, "strict")
+
+    def test_deleted_file_does_not_fail_strict(self):
+        issue = {"status": "auto_resolved", "resolution_kind": "file_deleted"}
+        assert not is_failure(issue, "strict")
+
+    def test_zone_policy_resolution_does_not_fail_strict(self):
+        issue = {"status": "auto_resolved", "resolution_kind": "zone_policy"}
+        assert not is_failure(issue, "strict")
+
+    def test_an_unknown_kind_is_not_a_way_out(self):
+        # Only the kinds the merge sets itself are exempt, so a hand-edited
+        # state file cannot invent one.
+        issue = {"status": "auto_resolved", "resolution_kind": "because_i_said_so"}
+        assert is_failure(issue, "strict")
+
+    def test_the_exemption_does_not_reach_other_statuses(self):
+        for status in ("open", "wontfix", "deferred", "triaged_out"):
+            issue = {"status": status, "resolution_kind": "file_deleted"}
+            assert is_failure(issue, "strict"), status
+
+    def test_verified_strict_is_unchanged(self):
+        # auto_resolved already passes verified_strict; the kind changes nothing.
+        for kind in (None, "file_deleted", "zone_policy"):
+            issue = {"status": "auto_resolved", "resolution_kind": kind}
+            assert not is_failure(issue, "verified_strict")
+
+    def test_missing_kind_behaves_as_before(self):
+        # State written by an older version has no `resolution_kind` at all.
+        assert is_failure({"status": "auto_resolved"}, "strict")
+        assert not is_failure({"status": "fixed"}, "strict")
 
 
 # ---------------------------------------------------------------------------

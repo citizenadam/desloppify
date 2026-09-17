@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from desloppify.base.enums import Tier
 from desloppify.base.registry import DETECTORS
@@ -197,6 +198,41 @@ FAILURE_STATUSES_BY_MODE: dict[ScoreMode, frozenset[str]] = {
     "verified_strict": frozenset({"open", "wontfix", "fixed", "false_positive", "deferred", "triaged_out"}),
 }
 
+# Auto-resolutions the tool established for itself, rather than inferred from a
+# finding's absence.
+#
+# `auto_resolved` fails strict on purpose: a finding that merely stopped
+# appearing may have been hidden rather than fixed, and strict is what refuses
+# to take that on trust. But two of the three reasons the merge auto-resolves
+# are not inferences at all — the source file is gone from disk, or zone policy
+# no longer scores that detector for that file. Both are checked directly, and
+# neither leaves anything a person could fix and attest, so the finding can
+# never reach `fixed` and never stops counting against strict.
+#
+# The effect is a score that decays as a codebase deletes dead code, which is
+# backwards. On one real repository this pinned a whole dimension at 0.0 for
+# eleven consecutive scans: 199 of its 631 strict failures named files that no
+# longer existed, and no amount of work could have recovered them.
+VERIFIED_RESOLUTION_KINDS = frozenset({"file_deleted", "zone_policy"})
+
+
+def is_failure(issue: Mapping[str, Any], mode: ScoreMode) -> bool:
+    """Whether an issue counts against the score in this mode.
+
+    Prefer this over testing `FAILURE_STATUSES_BY_MODE` directly: the status
+    alone cannot distinguish an auto-resolution the tool verified from one it
+    inferred.
+    """
+    status = issue.get("status", "open")
+    if status not in FAILURE_STATUSES_BY_MODE[mode]:
+        return False
+    if (
+        status == "auto_resolved"
+        and issue.get("resolution_kind") in VERIFIED_RESOLUTION_KINDS
+    ):
+        return False
+    return True
+
 # Tolerance for treating a subjective score as "on target" in integrity checks.
 # Scores within this band of the target are flagged as potential gaming.
 SUBJECTIVE_TARGET_MATCH_TOLERANCE = 0.05
@@ -262,6 +298,8 @@ __all__ = [
     "DIMENSIONS",
     "DIMENSIONS_BY_NAME",
     "FAILURE_STATUSES_BY_MODE",
+    "VERIFIED_RESOLUTION_KINDS",
+    "is_failure",
     "FILE_BASED_DETECTORS",
     "HOLISTIC_MULTIPLIER",
     "HOLISTIC_POTENTIAL",

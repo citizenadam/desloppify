@@ -79,6 +79,30 @@ def _mark_scan_verified(
     existing["scan_verification_text"] = attestation_text
 
 
+# The note each verified auto-resolution has always written, mapped to the kind
+# the scorer reads. State written before `resolution_kind` existed still gets
+# the exemption, so the fix applies to a repository's history and not only to
+# what it deletes next.
+_RESOLUTION_KIND_BY_NOTE = (
+    ("source file no longer exists", "file_deleted"),
+    ("zone policy now skips", "zone_policy"),
+)
+
+
+def _backfill_resolution_kinds(existing: dict) -> None:
+    """Stamp `resolution_kind` on auto-resolutions recorded before the field."""
+    for previous in existing.values():
+        if previous.get("status") != "auto_resolved":
+            continue
+        if previous.get("resolution_kind") is not None:
+            continue
+        note = previous.get("note") or ""
+        for fragment, kind in _RESOLUTION_KIND_BY_NOTE:
+            if fragment in note:
+                previous["resolution_kind"] = kind
+                break
+
+
 def verify_disappeared(
     existing: dict,
     current_ids: set[str],
@@ -101,6 +125,8 @@ def verify_disappeared(
     """
     resolved = skipped_other_lang = resolved_out_of_scope = 0
     resolved_detectors: set[str] = set()
+
+    _backfill_resolution_kinds(existing)
 
     for issue_id, previous in existing.items():
         previous_status = previous.get("status")
@@ -160,6 +186,7 @@ def verify_disappeared(
             if zone_map and file_path and should_skip_issue(zone_map, file_path, detector):
                 previous["status"] = "auto_resolved"
                 previous["resolved_at"] = now
+                previous["resolution_kind"] = "zone_policy"
                 previous["note"] = f"Auto-resolved: zone policy now skips {detector} for this file"
                 resolved_detectors.add(detector or "unknown")
                 resolved += 1
@@ -167,6 +194,7 @@ def verify_disappeared(
             if file_deleted:
                 previous["status"] = "auto_resolved"
                 previous["resolved_at"] = now
+                previous["resolution_kind"] = "file_deleted"
                 previous["note"] = "Auto-resolved: source file no longer exists"
                 resolved_detectors.add(previous.get("detector", "unknown"))
                 resolved += 1
@@ -174,6 +202,7 @@ def verify_disappeared(
             if detector and confirmed_detectors is not None and detector in confirmed_detectors:
                 previous["status"] = "auto_resolved"
                 previous["resolved_at"] = now
+                previous["resolution_kind"] = None
                 previous["note"] = "Auto-resolved: absent from latest detector output"
                 resolved_detectors.add(detector)
                 resolved += 1

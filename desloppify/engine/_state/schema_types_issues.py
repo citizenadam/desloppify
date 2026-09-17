@@ -50,6 +50,10 @@ class WorkItem(TypedDict):
     first_seen: str
     last_seen: str
     resolved_at: str | None
+    # Why an `auto_resolved` issue resolved, when the tool established it
+    # directly: "file_deleted" or "zone_policy". Absent or None means the
+    # finding merely stopped appearing, which strict still counts.
+    resolution_kind: NotRequired[str | None]
     reopen_count: int
     suppressed: NotRequired[bool]
     suppressed_at: NotRequired[str | None]
