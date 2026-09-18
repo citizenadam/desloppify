@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import os
 import re
 import tomllib
 from dataclasses import dataclass
@@ -463,7 +464,7 @@ def _build_workspace_package_index_cached(
         manifest = Path(resolve_path(manifest_path))
         if manifest.name != "Cargo.toml":
             continue
-        manifest_dir = manifest.parent.resolve()
+        manifest_dir = current.resolve()
         for name in {
             read_package_name(manifest_dir),
             read_library_crate_name(manifest_dir),
