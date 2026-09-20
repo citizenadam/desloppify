@@ -75,6 +75,12 @@ def _detect_unsafe_file_write(
     }
 
     results: list[dict] = []
+    module_aliases = {
+        alias.asname or alias.name.split(".", 1)[0]
+        for statement in tree.body
+        if isinstance(statement, ast.Import)
+        for alias in statement.names
+    }
     for node in _iter_nodes(tree, all_nodes, (ast.FunctionDef, ast.AsyncFunctionDef)):
         # Collect all method calls and check for atomic patterns in this function
         has_atomic_pattern = False
