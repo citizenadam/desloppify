@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from .. import PARSE_INIT_ERRORS
 from ..imports.cache import get_or_parse_tree
 from .extractors import _get_parser, _make_query, _node_text, _run_query, _unwrap_node
+from .kotlin_imports import collect_implicit_references
 
 if TYPE_CHECKING:
     from desloppify.languages._framework.treesitter import TreeSitterLangSpec
@@ -129,6 +130,11 @@ def detect_unused_imports(
         if not matches:
             continue
 
+        implicit_names = (
+            collect_implicit_references(tree.root_node)
+            if spec.grammar == "kotlin"
+            else set()
+        )
         for _pattern_idx, captures in matches:
             import_node = _unwrap_node(captures.get("import"))
             path_node = _unwrap_node(captures.get("path"))
@@ -564,7 +570,9 @@ def _extract_alias(import_node) -> str | None:
             found_as = True
             continue
         # The node immediately after "as" is the alias name.
-        if found_as and child.type in ("name", "identifier", "namespace_name"):
+        if found_as and child.type in (
+            "name", "identifier", "namespace_name", "type_identifier",
+        ):
             return _node_text(child)
     return None
 
@@ -582,7 +590,7 @@ def _iter_children(node):
             yield child
         elif child.type in (
             "namespace_use_clause", "import_clause",
-            "namespace_alias", "as_pattern",
+            "namespace_alias", "as_pattern", "import_alias",
         ):
             yield from _iter_children(child)
 

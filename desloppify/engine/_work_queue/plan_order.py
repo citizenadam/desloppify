@@ -162,6 +162,10 @@ def _build_cluster_meta(
     action = cluster_data.get("action") or ""
     autofix_hint = cluster_autofix_hint(cluster_data, detector=detector)
     if autofix_hint:
+        # Individual commands already account for each language's available
+        # fixers. A detector-wide cluster action must not bypass that check.
+        if not all(member.get("primary_command") == autofix_hint for member in members):
+            autofix_hint = None
         primary_command = f"desloppify next --cluster {cluster_name} --count 10"
     else:
         primary_command = action or f"desloppify next --cluster {cluster_name} --count 10"
