@@ -4,7 +4,7 @@ from desloppify.languages._framework.generic_support.core import generic_lang
 from desloppify.languages._framework.treesitter import KOTLIN_SPEC
 from desloppify.languages.kotlin._zones import KOTLIN_ZONE_RULES
 
-generic_lang(
+_config = generic_lang(
     name="kotlin",
     extensions=[".kt", ".kts"],
     tools=[
@@ -14,7 +14,7 @@ generic_lang(
             "fmt": "ktlint",
             "id": "ktlint_violation",
             "tier": 2,
-            "fix_cmd": "ktlint --format",
+            "fix_cmd": "ktlint --format --log-level=none",
         },
     ],
     exclude=["build"],
@@ -23,6 +23,9 @@ generic_lang(
     treesitter_spec=KOTLIN_SPEC,
     zone_rules=KOTLIN_ZONE_RULES,
 )
+
+_config.fixers["ktlint-violation"] = make_ktlint_fixer(_config.file_finder)
+_config.detect_commands["ktlint_violation"] = _config.fixers["ktlint-violation"].detect
 
 __all__ = [
     "generic_lang",
