@@ -66,6 +66,11 @@ def ts_build_dep_graph(
         return {}
 
     parser, language = _get_parser(spec.grammar)
+    if spec.grammar == "kotlin":
+        from .kotlin import build_kotlin_graph
+
+        return build_kotlin_graph(file_list, parser)
+
     query = _make_query(language, spec.import_query)
 
     scan_path = path.resolve()
