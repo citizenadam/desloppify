@@ -210,7 +210,9 @@ def find_python_dynamic_imports(path: Path, extensions: list[str]) -> set[str]:
 
     del extensions
     targets: set[str] = set()
-    for py_file in path.rglob("*.py"):
+    project_root = get_project_root()
+    for filename in find_py_files(path):
+        py_file = project_root / filename
         try:
             tree = ast.parse(py_file.read_text(), filename=str(py_file))
         except (SyntaxError, UnicodeDecodeError, OSError) as exc:

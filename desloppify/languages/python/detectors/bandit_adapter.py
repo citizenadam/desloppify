@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 _SEVERITY_TO_TIER = {"HIGH": 4, "MEDIUM": 3, "LOW": 3}
 _SEVERITY_TO_CONFIDENCE = {"HIGH": "high", "MEDIUM": "medium", "LOW": "low"}
+_TARGET_BYTES_PER_BATCH = 32768
 
 # Bandit test IDs that overlap with the cross-language security detector
 # (secret names, hardcoded passwords). Skip these to avoid duplicate issues.
@@ -256,7 +257,6 @@ def _run_bandit(
         sys.executable,
         "-m",
         "bandit",
-        "-r",
         "-f",
         "json",
         "--quiet",
