@@ -219,8 +219,7 @@ def auto_resolve_stale_holistic(
         for dim in (imported_dimensions or set())
         if isinstance(dim, str) and dim.strip()
     }
-    scoped_reimport = full_sweep_included is False
-    if scoped_reimport and not scope_dimensions:
+    if not scope_dimensions:
         return
 
     def _should_resolve(issue: Issue) -> bool:
@@ -231,8 +230,6 @@ def auto_resolve_stale_holistic(
         detail = issue.get("detail")
         if not isinstance(detail, dict) or not detail.get("holistic"):
             return False
-        if not scoped_reimport:
-            return True
         dimension = normalize_dimension_name(str(detail.get("dimension", "")))
         return dimension in scope_dimensions
 
