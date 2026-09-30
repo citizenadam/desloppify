@@ -127,8 +127,8 @@ _PIPELINE_CASES = [
         True,
     ),
     (["naming_quality", "logic_clarity"], ["naming_quality"], [0, 1], False, False),
-    # --only-batches does not imply the omitted packet dimensions were assessed.
-    (["naming_quality", "logic_clarity"], ["naming_quality"], [0], False, False),
+    # A selected batch slice requires assessments for its own dimensions.
+    (["naming_quality", "logic_clarity"], ["naming_quality"], [0], False, True),
     (["naming_quality", "logic_clarity"], ["naming_quality"], [0], True, True),
     (
         ["naming_quality", "logic_clarity"],
@@ -167,13 +167,18 @@ def test_live_and_replay_enforce_the_same_packet_contract(
         imports.append(json.loads(Path(path).read_text()))
         policies.append(import_config)
 
+    required = scope.selected_batch_dimensions(
+        batches=packet["investigation_batches"],
+        selected_indexes=indexes,
+        packet_dimensions=selected,
+    )
     payload = _merged(assessed)
     if mode == "live":
         prepared = SimpleNamespace(
             batch_results=[payload],
             batches=packet["investigation_batches"],
             packet=packet,
-            packet_dimensions=selected,
+            packet_dimensions=required,
             scored_dimensions=["naming_quality", "logic_clarity"],
             selected_indexes=indexes,
             scan_path=".",
@@ -251,7 +256,7 @@ def test_live_and_replay_enforce_the_same_packet_contract(
         run()
         assert len(imports) == 1
         assert imports[0]["assessments"] == dict.fromkeys(assessed, 75.0)
-        assert imports[0]["assessment_coverage"]["selected_dimensions"] == selected
+        assert imports[0]["assessment_coverage"]["selected_dimensions"] == required
         assert (
             imports[0]["provenance"]["packet_sha256"]
             == hashlib.sha256(blind.read_bytes()).hexdigest()
