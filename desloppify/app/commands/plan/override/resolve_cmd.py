@@ -18,6 +18,7 @@ from desloppify.base.output.terminal import colorize
 from desloppify.engine._plan.triage.protection import protected_review_issue_ids
 from desloppify.engine._plan.operations.meta import append_log_entry
 from desloppify.engine._work_queue.core import ATTEST_EXAMPLE
+from desloppify.engine.plan_ops import append_log_entry
 from desloppify.engine.plan_state import (
     load_plan,
     save_plan,
@@ -43,7 +44,20 @@ def cmd_plan_resolve(args: argparse.Namespace) -> None:
         attestation = f"I have actually {note} and I am not gaming the score."
         args.attest = attestation
 
-    synthetic_ids, real_patterns = split_synthetic_patterns(patterns)
+    strategy_state = None
+    if any(pattern.startswith(STRATEGY_PREFIX) for pattern in patterns):
+        strategy_state = command_runtime(args).state
+    synthetic_ids, real_patterns = split_synthetic_patterns(patterns, state=strategy_state)
+
+    # Validate state-backed work before resolving any virtual item in a mixed batch.
+    if real_patterns or not synthetic_ids:
+        if not validate_note_length(note):
+            show_note_length_requirement(note)
+            return
+        if not validate_attestation(attestation):
+            show_attestation_requirement("Plan resolve", attestation, ATTEST_EXAMPLE)
+            return
+
     if synthetic_ids:
         workflow_outcome = resolve_workflow_patterns(
             args,
@@ -57,14 +71,6 @@ def cmd_plan_resolve(args: argparse.Namespace) -> None:
             return
         patterns = workflow_outcome.remaining_patterns
         args.patterns = patterns
-
-    if not validate_note_length(note):
-        show_note_length_requirement(note)
-        return
-
-    if not validate_attestation(attestation):
-        show_attestation_requirement("Plan resolve", attestation, ATTEST_EXAMPLE)
-        return
 
     plan: dict | None = None
     try:
