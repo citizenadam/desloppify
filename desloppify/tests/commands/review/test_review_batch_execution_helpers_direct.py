@@ -392,7 +392,12 @@ def test_do_import_run_recollects_batches_from_selected_indexes(tmp_path: Path, 
                         "name": "mid_level_elegance",
                         "dimensions": ["mid_level_elegance"],
                         "files_to_read": ["a.py"],
-                    }
+                    },
+                    {
+                        "name": "second mid_level_elegance slice",
+                        "dimensions": ["mid_level_elegance"],
+                        "files_to_read": ["b.py"],
+                    },
                 ],
             }
         )

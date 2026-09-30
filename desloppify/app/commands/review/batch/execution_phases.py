@@ -43,6 +43,7 @@ from .scope import (
     print_preflight_dimension_scope_notice,
     require_batches,
     scored_dimensions_for_lang,
+    selected_batch_dimensions,
     validate_runner,
 )
 
@@ -159,13 +160,6 @@ def _prepare_packet_scope(
     scan_path = str(getattr(args, "path", ".") or ".")
     packet_dimensions = normalize_dimension_list(packet.get("dimensions", []))
     scored_dimensions = scored_dimensions_for_lang(lang.name)
-    print_preflight_dimension_scope_notice(
-        selected_dims=packet_dimensions,
-        scored_dims=scored_dimensions,
-        explicit_selection=bool(getattr(args, "dimensions", None)),
-        scan_path=scan_path,
-        colorize_fn=deps.colorize_fn,
-    )
     suggested_prepare_cmd = f"desloppify review --prepare --path {scan_path}"
     raw_dim_prompts = packet.get("dimension_prompts")
     batches = explode_to_single_dimension(
@@ -177,6 +171,20 @@ def _prepare_packet_scope(
         dimension_prompts=raw_dim_prompts if isinstance(raw_dim_prompts, dict) else None,
     )
     selected_indexes = deps.selected_batch_indexes_fn(args, batch_count=len(batches))
+    packet_dimensions = selected_batch_dimensions(
+        batches=batches,
+        selected_indexes=selected_indexes,
+        packet_dimensions=packet_dimensions,
+    )
+    print_preflight_dimension_scope_notice(
+        selected_dims=packet_dimensions,
+        scored_dims=scored_dimensions,
+        explicit_selection=bool(
+            getattr(args, "dimensions", None) or getattr(args, "only_batches", None)
+        ),
+        scan_path=scan_path,
+        colorize_fn=deps.colorize_fn,
+    )
     return PreparedPacketScope(
         packet=packet,
         immutable_packet_path=immutable_packet_path,
