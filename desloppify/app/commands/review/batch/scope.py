@@ -13,7 +13,6 @@ from desloppify.intelligence.review.feedback_contract import (
     TRUSTED_IMPORT_COVERAGE_OVERRIDE_FLAG,
 )
 
-
 _SUPPORTED_RUNNERS = {"codex", "opencode", "rovodev"}
 
 
@@ -241,7 +240,7 @@ def enforce_trusted_import_coverage_gate(
     if allow_partial:
         print(
             colorize_fn(
-                "  Coverage override: importing with missing scored dimensions "
+                "  Coverage override: importing with missing selected dimensions "
                 f"because {TRUSTED_IMPORT_COVERAGE_OVERRIDE_FLAG} is enabled.",
                 "yellow",
             )

@@ -9,10 +9,10 @@ from desloppify.base.exception_sets import CommandError
 
 from ..importing.flags import ReviewImportConfig
 from .execution import CollectBatchResultsRequest
-
 from .scope import (
     collect_reviewed_files_from_batches,
     enforce_trusted_import_coverage_gate,
+    missing_scored_dimensions,
     normalize_dimension_list,
     print_import_dimension_coverage_notice,
     print_review_quality,
