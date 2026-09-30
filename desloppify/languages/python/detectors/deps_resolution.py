@@ -50,7 +50,7 @@ def resolve_python_from_import(
 
     results = []
     target = resolve_python_import(module_path, source_file, scan_root_path)
-    if target and import_names:
+    if import_names:
         names = [name.strip().split()[0] for name in import_names.split(",")]
         for name in names:
             cleaned = name.strip("()")

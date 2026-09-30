@@ -9,6 +9,7 @@ from typing import Any
 
 from desloppify.base.coercions import coerce_confidence
 from desloppify.base.discovery.paths import get_project_root
+from desloppify.base.discovery.source import SourceDiscoveryOptions, find_source_files
 from desloppify.base.output.terminal import log
 from desloppify.engine._state.filtering import make_issue
 from desloppify.engine.policy.zones import should_skip_issue
