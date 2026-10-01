@@ -98,7 +98,7 @@ class ReconcileResult:
         return injected
 
 
-def _current_scores(state: dict) -> ScoreSnapshot:
+def _current_scores(state: StateModel) -> ScoreSnapshot:
     snapshot = score_snapshot(state)
     return ScoreSnapshot(
         strict=snapshot.strict,
@@ -114,7 +114,7 @@ def _log_gate_changes(plan: dict, action: str, detail: dict[str, object]) -> Non
 
 def _resolve_reconcile_display_phase(
     plan: dict,
-    state: dict,
+    state: StateModel,
     *,
     result: ReconcileResult,
     policy: object | None,
@@ -326,7 +326,7 @@ def live_planned_queue_empty(plan: dict) -> bool:
 
 def reconcile_plan(
     plan: dict,
-    state: dict,
+    state: StateModel,
     *,
     target_strict: float,
     force_rescan: bool = False,

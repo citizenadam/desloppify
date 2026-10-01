@@ -243,6 +243,12 @@ def derive_display_phase(
         return LIFECYCLE_PHASE_REVIEW_INITIAL
     if prefer_scan:
         return LIFECYCLE_PHASE_SCAN
+    if has_reassessment_blockers:
+        if has_workflow:
+            return LIFECYCLE_PHASE_WORKFLOW_POSTFLIGHT
+        if has_triage:
+            return LIFECYCLE_PHASE_TRIAGE_POSTFLIGHT
+        return LIFECYCLE_PHASE_REVIEW_POSTFLIGHT
     if has_postflight_assessment:
         return LIFECYCLE_PHASE_ASSESSMENT_POSTFLIGHT
     if has_workflow:

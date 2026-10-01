@@ -42,6 +42,10 @@ from desloppify.engine._state.issue_semantics import (
 )
 from desloppify.engine._state.schema import StateModel
 from desloppify.engine._work_queue.ranking import build_issue_items
+from desloppify.engine._work_queue.review_scope import (
+    review_blockers,
+    scored_dimensions,
+)
 from desloppify.engine._work_queue.synthetic import (
     build_subjective_items,
     build_triage_stage_items,
@@ -306,6 +310,7 @@ def _phase_for_snapshot(
     postflight_review_items: list[WorkQueueItem],
     postflight_workflow_items: list[WorkQueueItem],
     triage_items: list[WorkQueueItem],
+    reassessment_blockers: list[WorkQueueItem] | None = None,
 ) -> str:
     has_execution = bool(anchored_execution_items or explicit_queue_items)
     execution_ids = {
@@ -331,6 +336,7 @@ def _phase_for_snapshot(
         postflight_review_items = []
         postflight_workflow_items = []
         triage_items = []
+        reassessment_blockers = []
 
     return _derive_display_phase(
         fresh_boundary=fresh_boundary,
@@ -397,6 +403,7 @@ def _execution_items_for_phase(
     postflight_review_items: list[WorkQueueItem],
     postflight_workflow_items: list[WorkQueueItem],
     triage_items: list[WorkQueueItem],
+    reassessment_blockers: list[WorkQueueItem] | None = None,
 ) -> list[WorkQueueItem]:
     if phase == LIFECYCLE_PHASE_REVIEW_INITIAL:
         return initial_review_items
@@ -414,6 +421,8 @@ def _execution_items_for_phase(
     if phase == LIFECYCLE_PHASE_ASSESSMENT_POSTFLIGHT:
         return postflight_assessment_items
     if phase == LIFECYCLE_PHASE_REVIEW_POSTFLIGHT:
+        if postflight_assessment_items and reassessment_blockers:
+            return reassessment_blockers
         return postflight_review_items
     if phase == LIFECYCLE_PHASE_WORKFLOW_POSTFLIGHT:
         return postflight_workflow_items
@@ -437,6 +446,7 @@ class _Partitions(NamedTuple):
     subjective_postflight_items: list[WorkQueueItem]
     postflight_assessment_items: list[WorkQueueItem]
     postflight_review_items: list[WorkQueueItem]
+    reassessment_blockers: list[WorkQueueItem]
     scan_items: list[WorkQueueItem]
     postflight_workflow_items: list[WorkQueueItem]
     triage_items: list[WorkQueueItem]
@@ -544,6 +554,9 @@ def _build_item_partitions(
         subjective_postflight_items=subjective_postflight_items,
         postflight_assessment_items=postflight_assessment_items,
         postflight_review_items=postflight_review_items,
+        reassessment_blockers=review_blockers(
+            postflight_review_items, blocking_dims=scored_dimensions(state),
+        ),
         scan_items=scan_items,
         postflight_workflow_items=postflight_workflow_items,
         triage_items=triage_items,
@@ -618,6 +631,7 @@ def build_queue_snapshot(
         postflight_review_items=p.postflight_review_items,
         postflight_workflow_items=p.postflight_workflow_items,
         triage_items=p.triage_items,
+        reassessment_blockers=p.reassessment_blockers,
     )
     execution_items = _execution_items_for_phase(
         phase,
@@ -628,6 +642,7 @@ def build_queue_snapshot(
         postflight_review_items=p.postflight_review_items,
         postflight_workflow_items=p.postflight_workflow_items,
         triage_items=p.triage_items,
+        reassessment_blockers=p.reassessment_blockers,
     )
 
     execution_ids = {item.get("id", "") for item in execution_items}
