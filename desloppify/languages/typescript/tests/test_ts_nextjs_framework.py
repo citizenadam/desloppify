@@ -13,6 +13,9 @@ from desloppify.languages._framework.node.frameworks.nextjs.info import (
     nextjs_info_from_evidence,
 )
 from desloppify.languages._framework.node.frameworks.nextjs.scanners import (
+    scan_nextjs_browser_globals_missing_use_client,
+    scan_nextjs_navigation_hooks_missing_use_client,
+    scan_rsc_missing_use_client,
     scan_nextjs_server_modules_in_pages_router,
     scan_nextjs_server_navigation_apis_in_client,
     scan_nextjs_use_server_in_client,
