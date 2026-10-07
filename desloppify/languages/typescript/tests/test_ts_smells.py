@@ -552,3 +552,45 @@ def test_entries_sorted_by_severity_then_count(tmp_path):
                 assert entries[i]["count"] >= entries[i + 1]["count"]
             else:
                 assert cur_sev <= next_sev
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        # Apostrophes in two comments used to pair up into one phantom string
+        # that swallowed the await between them.
+        "export async function POST(req: Request) {\n"
+        "  // we don't retry\n"
+        "  const body = await req.json()\n"
+        "  // it can't be empty\n"
+        "  return body\n"
+        "}\n",
+        # Same with backticks in prose.
+        "export async function POST(req: Request) {\n"
+        "  // `text()` buffers, so read with a cap\n"
+        "  const raw = await req.text()\n"
+        "  // see `readCapped\n"
+        "  return raw\n"
+        "}\n",
+        # A brace inside a block comment must not close the body early.
+        "export async function POST(req: Request) {\n"
+        "  /* } */\n"
+        "  return await req.json()\n"
+        "}\n",
+    ],
+)
+def test_async_with_await_after_quote_in_comment_not_flagged(tmp_path, source):
+    """Quotes, backticks and braces in comments do not hide the code after them."""
+    _write(tmp_path, "route.ts", source)
+    entries, _ = detect_smells(tmp_path)
+    ids = {e["id"] for e in entries}
+    assert "async_no_await" not in ids
+
+
+def test_scan_code_masks_comments_but_not_comment_markers_in_strings():
+    from desloppify.languages.typescript.syntax.scanner import scan_code
+
+    text = "a('//x'); // b'c\nd /* e`f */ g"
+    code = "".join(ch for _, ch, masked in scan_code(text) if not masked)
+    # The closing quote is reported as code, as before.
+    assert code == "a('); \nd  g"
