@@ -21,6 +21,15 @@ from .info import NextjsFrameworkInfo
 
 logger = logging.getLogger(__name__)
 
+# Test/story/mock files live beside App Router modules but are never bundled
+# by Next.js, so directive rules ('use client' etc.) don't apply to them.
+_NON_MODULE_MARKERS = (".test.", ".spec.", ".stories.", "/__tests__/", "/__mocks__/")
+
+
+def _is_test_or_story_file(filepath: str) -> bool:
+    normalized = filepath.replace("\\", "/")
+    return any(marker in normalized for marker in _NON_MODULE_MARKERS)
+
 _USE_CLIENT_RE = re.compile(
     r"""^(?:'use client'|"use client")\s*;?\s*(?://.*)?$"""
 )
@@ -473,6 +482,8 @@ def scan_nextjs_browser_globals_missing_use_client(
         if not _is_under_any_root(filepath, info.app_roots):
             continue
         if filepath.endswith("/route.ts") or filepath.endswith("/route.tsx"):
+            continue
+        if _is_test_or_story_file(filepath):
             continue
 
         scanned += 1

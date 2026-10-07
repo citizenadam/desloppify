@@ -13,6 +13,7 @@ from desloppify.languages._framework.node.frameworks.nextjs.info import (
     nextjs_info_from_evidence,
 )
 from desloppify.languages._framework.node.frameworks.nextjs.scanners import (
+    scan_nextjs_browser_globals_missing_use_client,
     scan_nextjs_server_modules_in_pages_router,
     scan_nextjs_server_navigation_apis_in_client,
     scan_nextjs_use_server_in_client,
@@ -227,3 +228,29 @@ def test_next_lint_phase_is_skipped_when_include_slow_false():
     labels = [getattr(p, "label", "") for p in selected]
     assert "Next.js framework smells" in labels
     assert "next lint" not in labels
+
+
+def test_browser_globals_missing_use_client_skips_test_and_story_files(tmp_path: Path):
+    _write(tmp_path, "package.json", '{"dependencies": {"next": "14.0.0"}}\n')
+    _write(
+        tmp_path,
+        "app/widget.tsx",
+        "export default function Widget(){ return <div>{window.innerWidth}</div> }\n",
+    )
+    for name in (
+        "app/widget.test.tsx",
+        "app/widget.spec.ts",
+        "app/widget.stories.tsx",
+        "app/__tests__/widget.tsx",
+        "app/__mocks__/widget.ts",
+    ):
+        _write(tmp_path, name, "it('x', () => { document.body.innerHTML = '' })\n")
+
+    info = nextjs_info_from_evidence(
+        {"marker_dir_hits": ["app"]},
+        package_root=tmp_path.resolve(),
+        package_json_relpath="package.json",
+    )
+    entries, scanned = scan_nextjs_browser_globals_missing_use_client(tmp_path, info)
+    assert {entry["file"] for entry in entries} == {"app/widget.tsx"}
+    assert scanned == 1
