@@ -284,6 +284,50 @@ def test_async_with_await_not_flagged(tmp_path):
     assert "async_no_await" not in ids
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        # Destructured parameter with an inline object type (Next.js pages).
+        "export default async function Page({ params }: { params: Promise<{ id: string }> }) {\n"
+        "  const { id } = await params\n"
+        "  return id\n"
+        "}\n",
+        # Multi-line signature with an object-literal return type.
+        "export async function load(\n"
+        "  db: Db,\n"
+        "  { id, reset = false }: { id: string; reset?: boolean },\n"
+        "): Promise<{ ok: boolean }> {\n"
+        "  await db.query(id, reset)\n"
+        "  return { ok: true }\n"
+        "}\n",
+        # Arrow function with a destructured parameter.
+        "const handler = async ({ req }: { req: Request }) => {\n"
+        "  return await req.json()\n"
+        "}\n",
+    ],
+)
+def test_async_with_await_and_signature_braces_not_flagged(tmp_path, source):
+    """Braces in the parameter list or return type are not the function body."""
+    _write(tmp_path, "ok.ts", source)
+    entries, _ = detect_smells(tmp_path)
+    ids = {e["id"] for e in entries}
+    assert "async_no_await" not in ids
+
+
+def test_async_without_await_and_signature_braces_still_flagged(tmp_path):
+    _write(
+        tmp_path,
+        "bad.ts",
+        (
+            "export async function Page({ params }: { params: { id: string } }): Promise<{ id: string }> {\n"
+            "  return { id: params.id }\n"
+            "}\n"
+        ),
+    )
+    entries, _ = detect_smells(tmp_path)
+    ids = {e["id"] for e in entries}
+    assert "async_no_await" in ids
+
 def test_detect_console_error_no_throw(tmp_path):
     """Detects console.error not followed by throw or return."""
 

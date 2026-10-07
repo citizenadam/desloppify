@@ -6,8 +6,10 @@ import re
 
 from .helpers import (
     _code_text,
+    _find_block_end,
     _strip_ts_comments,
     _track_brace_body,
+    scan_code,
 )
 
 _MONSTER_FUNCTION_LOC = 150
@@ -103,22 +105,65 @@ def _find_opening_brace_line(lines: list[str], start: int, *, window: int = 5) -
     return None
 
 
+# Characters after which a `{` opens a type literal or destructuring pattern in
+# a signature (`x: {`, `Promise<{`, `A | {`, `({ a }`), not the function body.
+_TYPE_BRACE_PRECEDERS = frozenset(":|&<,(?")
+_SIGNATURE_WINDOW = 15
+
+
+def _find_body_open(text: str) -> int | None:
+    """Return the offset of the `{` that opens the function body in ``text``.
+
+    ``text`` starts at the function's declaration line. Braces inside the
+    parameter list (destructuring, inline object types) and in a return-type
+    annotation (`Promise<{ ... }>`, `): { ... } {`) are skipped. Returns None
+    for an arrow function with an expression body or when no body is found.
+    """
+    nesting = 0  # (), [], <> and non-body {} depth
+    prev = ""
+    chars = list(scan_code(text))
+    k = 0
+    while k < len(chars):
+        idx, ch, in_string = chars[k]
+        k += 1
+        if in_string:
+            prev = "\""
+            continue
+        if ch.isspace():
+            continue
+        if ch == "=" and k < len(chars) and chars[k][1] == ">" and not chars[k][2]:
+            k += 1
+            prev = "=>"
+            continue
+        if prev == "=>" and nesting == 0 and ch != "{":
+            return None  # arrow function with an expression body
+        if ch == ";" and nesting == 0:
+            return None
+        if ch == "{":
+            if nesting == 0 and prev not in _TYPE_BRACE_PRECEDERS:
+                return idx
+            nesting += 1
+        elif ch in "([<":
+            nesting += 1
+        elif ch in ")]>}":
+            nesting = max(0, nesting - 1)
+        prev = ch
+    return None
+
+
 def _extract_function_body(
     lines: list[str], start_line: int, *, max_scan: int = 2000,
 ) -> str | None:
     """Extract the inner body text of a function starting at start_line."""
-    brace_line = _find_opening_brace_line(lines, start_line, window=5)
-    if brace_line is None:
+    signature = "\n".join(lines[start_line : start_line + _SIGNATURE_WINDOW])
+    body_open = _find_body_open(signature)
+    if body_open is None:
         return None
-    end_line = _track_brace_body(lines, brace_line, max_scan=max_scan)
-    if end_line is None:
+    text = "\n".join(lines[start_line : start_line + max_scan])
+    body_close = _find_block_end(text, body_open, max_scan=len(text))
+    if body_close is None:
         return None
-    body_text = "\n".join(lines[brace_line : end_line + 1])
-    first_brace = body_text.find("{")
-    last_brace = body_text.rfind("}")
-    if first_brace == -1 or last_brace == -1 or first_brace >= last_brace:
-        return None
-    return body_text[first_brace + 1 : last_brace]
+    return text[body_open + 1 : body_close]
 
 
 def _count_pattern_in_body(body: str, pattern: re.Pattern[str]) -> int:
