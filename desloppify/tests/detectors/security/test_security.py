@@ -464,6 +464,28 @@ class TestTsEvalInjection:
         finally:
             os.unlink(path)
 
+    def test_eval_mentioned_in_block_and_jsdoc_comments_not_flagged(self):
+        content = textwrap.dedent(
+            """\
+            /**
+             * In development we relax script-src to allow eval (React Refresh)
+             */
+            /* single-line block: eval(x) */
+            /*
+              eval(fromABlock)
+            */
+            export const csp = "script-src 'self'"
+            const result = eval(userInput);
+            """
+        )
+        path = _write_temp_file(content, suffix=".ts")
+        try:
+            entries, _ = _detect_ts_security([path], None)
+            evals = [e for e in entries if e["detail"]["kind"] == "eval_injection"]
+            assert [e["detail"]["line"] for e in evals] == [9]
+        finally:
+            os.unlink(path)
+
 
 class TestTsDangerousHtml:
     def test_dangerously_set_inner_html(self):
