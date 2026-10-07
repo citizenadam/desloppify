@@ -747,6 +747,8 @@ def scan_rsc_missing_use_client(path: Path, info: NextjsFrameworkInfo) -> tuple[
     for filepath in find_js_ts_and_tsx_files(path):
         if not _is_under_any_root(filepath, info.app_roots):
             continue
+        if _is_test_or_story_file(filepath):
+            continue
 
         scanned += 1
         try:
@@ -790,6 +792,8 @@ def scan_nextjs_navigation_hooks_missing_use_client(
     scanned = 0
     for filepath in find_js_ts_and_tsx_files(path):
         if not _is_under_any_root(filepath, info.app_roots):
+            continue
+        if _is_test_or_story_file(filepath):
             continue
 
         scanned += 1

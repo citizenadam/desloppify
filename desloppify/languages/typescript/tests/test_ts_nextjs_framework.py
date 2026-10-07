@@ -14,6 +14,8 @@ from desloppify.languages._framework.node.frameworks.nextjs.info import (
 )
 from desloppify.languages._framework.node.frameworks.nextjs.scanners import (
     scan_nextjs_browser_globals_missing_use_client,
+    scan_nextjs_navigation_hooks_missing_use_client,
+    scan_rsc_missing_use_client,
     scan_nextjs_server_modules_in_pages_router,
     scan_nextjs_server_navigation_apis_in_client,
     scan_nextjs_use_server_in_client,
@@ -252,5 +254,37 @@ def test_browser_globals_missing_use_client_skips_test_and_story_files(tmp_path:
         package_json_relpath="package.json",
     )
     entries, scanned = scan_nextjs_browser_globals_missing_use_client(tmp_path, info)
+    assert {entry["file"] for entry in entries} == {"app/widget.tsx"}
+    assert scanned == 1
+
+
+@pytest.mark.parametrize(
+    ("scanner", "hook_call"),
+    [
+        (scan_rsc_missing_use_client, "useState(0)"),
+        (scan_nextjs_navigation_hooks_missing_use_client, "useRouter()"),
+    ],
+)
+def test_hook_missing_use_client_scanners_skip_test_and_story_files(
+    tmp_path: Path, scanner, hook_call: str
+):
+    _write(tmp_path, "package.json", '{"dependencies": {"next": "14.0.0"}}\n')
+    body = f"export default function Widget(){{ const x = {hook_call}; return <div /> }}\n"
+    _write(tmp_path, "app/widget.tsx", body)
+    for name in (
+        "app/widget.test.tsx",
+        "app/widget.spec.tsx",
+        "app/widget.stories.tsx",
+        "app/__tests__/widget.tsx",
+        "app/__mocks__/widget.tsx",
+    ):
+        _write(tmp_path, name, body)
+
+    info = nextjs_info_from_evidence(
+        {"marker_dir_hits": ["app"]},
+        package_root=tmp_path.resolve(),
+        package_json_relpath="package.json",
+    )
+    entries, scanned = scanner(tmp_path, info)
     assert {entry["file"] for entry in entries} == {"app/widget.tsx"}
     assert scanned == 1
