@@ -285,9 +285,7 @@ def collapse_clusters(items: list[WorkQueueItem], plan: dict) -> list[WorkQueueI
         if cname and cname in meta_items:
             if cname not in seen_clusters:
                 seen_clusters.add(cname)
-                # Auto-clusters collapse in-place; manual clusters go to front
-                if clusters.get(cname, {}).get("auto"):
-                    rest.append(meta_items[cname])
+                rest.append(meta_items[cname])
             # skip individual member
         else:
             rest.append(item)

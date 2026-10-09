@@ -12,6 +12,11 @@ from desloppify.base.discovery.file_paths import resolve_path, resolve_scan_file
 
 from ..analysis.extractors import _get_parser, _make_query, _run_query, _unwrap_node
 from .cache import get_or_parse_tree
+from .php_references import (
+    PhpClassSymbols,
+    add_php_class_reference_edges,
+    collect_php_class_symbols,
+)
 
 if TYPE_CHECKING:
     from desloppify.languages._framework.treesitter import TreeSitterLangSpec
@@ -43,7 +48,7 @@ def ts_build_dep_graph(
     framework_extensions: tuple[str, ...] | None = None,
     framework_file_finder: Callable[[Path], list[str]] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Build a dependency graph by parsing imports with tree-sitter.
+    """Build a dependency graph from imports and native PHP class references.
 
     Returns the same shape as Python/TS dep graphs:
     {file: {"imports": set[str], "importers": set[str], "import_count": int, "importer_count": int}}
@@ -86,6 +91,7 @@ def ts_build_dep_graph(
             )
         file_keys_by_path[identity] = filepath
     graph: dict[str, dict[str, Any]] = {}
+    php_symbols: dict[str, PhpClassSymbols] = {}
 
     # Initialize all files in the graph.
     for f in file_list:
@@ -97,6 +103,10 @@ def ts_build_dep_graph(
         if cached is None:
             continue
         _source, tree = cached
+        if spec.grammar == "php":
+            php_symbols[filepath] = collect_php_class_symbols(tree.root_node)
+            # PHP names require namespace/alias binding, not basename guesses.
+            continue
         matches = _run_query(query, tree.root_node)
 
         for _pattern_idx, captures in matches:
@@ -144,6 +154,9 @@ def ts_build_dep_graph(
             graph[filepath]["imports"].add(target)
             if target in graph:
                 graph[target]["importers"].add(filepath)
+
+    if php_symbols:
+        add_php_class_reference_edges(graph, php_symbols)
 
     # Finalize: add counts.
     for data in graph.values():

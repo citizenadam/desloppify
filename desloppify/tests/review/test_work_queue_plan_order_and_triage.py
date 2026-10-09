@@ -49,7 +49,8 @@ def _state(issues: list[dict], *, dimension_scores: dict | None = None) -> dict:
 # ── Cluster collapse ─────────────────────────────────────
 
 
-def test_collapse_clusters_preserves_order():
+@pytest.mark.parametrize("auto", [True, False])
+def test_collapse_clusters_preserves_order(auto):
     """Cluster meta-item appears at position of first member, not re-sorted."""
     from desloppify.engine._work_queue.plan_order import collapse_clusters
 
@@ -62,7 +63,7 @@ def test_collapse_clusters_preserves_order():
     }
     plan["clusters"]["auto/unused"] = {
         "name": "auto/unused",
-        "auto": True,
+        "auto": auto,
         "cluster_key": "auto::unused",
         "issue_ids": ["u1", "u2"],
         "description": "Remove 2 unused issues",

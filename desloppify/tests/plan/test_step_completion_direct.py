@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+from desloppify.engine._plan.schema import empty_plan
 from desloppify.engine._plan.step_completion import auto_complete_steps
 from desloppify.engine.plan_ops import purge_ids, skip_items
 
