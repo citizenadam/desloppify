@@ -1,7 +1,7 @@
 """Tests for desloppify.languages.typescript.detectors.unused — unused declaration detection.
 
-Note: detect_unused depends on tsc (TypeScript compiler) and a real project setup,
-so we test what is feasible: the helper function _categorize_unused and module imports.
+Compiler integration cases run when tsc is on PATH; unit cases cover discovery
+and failure handling without requiring Node.
 """
 
 import json
@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 import desloppify.languages.typescript.detectors.unused as ts_unused_mod
+from desloppify.base.exception_sets import CommandError
 from desloppify.languages.typescript.detectors.unused import (
     TS6133_RE,
     TS6192_RE,
@@ -156,11 +157,13 @@ class TestDenoFallback:
         result = ts_unused_mod._run_tsc_unused_check(tmp_path, tsconfig)
 
         assert result.stdout == ""
-        assert recorded["args"] == [
+        assert recorded["args"][:-1] == [
             npx_path,
             "tsc",
             "--project",
             str(tsconfig),
+            "--pretty",
+            "false",
             "--noEmit",
         ]
         assert recorded["cwd"] == tmp_path
@@ -229,6 +232,7 @@ class TestDenoFallback:
         """Regular TypeScript projects should still parse TS6133/TS6192 from tsc."""
         _write(tmp_path, "tsconfig.json", "{}\n")
         _write(tmp_path, "src/app.ts", "const x = 1;\n")
+        _write(tmp_path, "tsconfig.json", "{}")
 
         class _Result:
             stdout = "src/app.ts(1,7): error TS6133: 'x' is declared but its value is never read.\n"
@@ -238,6 +242,8 @@ class TestDenoFallback:
 
         def _fake_run(*args, **kwargs):
             calls["count"] += 1
+            if "--showConfig" in args[0]:
+                return subprocess.CompletedProcess(args[0], 0, "{}", "")
             return _Result()
 
         monkeypatch.setattr(
@@ -247,7 +253,7 @@ class TestDenoFallback:
         )
         monkeypatch.setattr(ts_unused_mod._proc_runtime, "run", _fake_run)
         entries, total = detect_unused(tmp_path / "src")
-        assert calls["count"] == 1
+        assert calls["count"] == 2
         assert total == 1
         assert entries and entries[0]["name"] == "x"
 
@@ -295,6 +301,7 @@ class TestDenoFallback:
         _write(tmp_path, "deno.lock", "{}\n")
         _write(tmp_path, "tsconfig.json", "{}\n")
         _write(tmp_path, "src/app.ts", "const x = 1;\n")
+        _write(tmp_path, "tsconfig.json", "{}")
 
         class _Result:
             stdout = "src/app.ts(1,7): error TS6133: 'x' is declared but its value is never read.\n"
@@ -304,6 +311,8 @@ class TestDenoFallback:
 
         def _fake_run(*args, **kwargs):
             calls["count"] += 1
+            if "--showConfig" in args[0]:
+                return subprocess.CompletedProcess(args[0], 0, "{}", "")
             return _Result()
 
         monkeypatch.setattr(
@@ -313,7 +322,7 @@ class TestDenoFallback:
         )
         monkeypatch.setattr(ts_unused_mod._proc_runtime, "run", _fake_run)
         entries, total = detect_unused(tmp_path / "src")
-        assert calls["count"] == 1
+        assert calls["count"] == 2
         assert total == 1
         assert entries and entries[0]["name"] == "x"
 
