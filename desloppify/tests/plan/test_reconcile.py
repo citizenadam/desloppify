@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+
+import pytest
+
 from desloppify.engine._plan.operations.cluster import add_to_cluster, create_cluster
+from desloppify.engine._plan.operations.skip import skip_items
 from desloppify.engine._plan.scan_issue_reconcile import reconcile_plan_after_scan
 from desloppify.engine._plan.schema import empty_plan, ensure_plan_defaults
+from desloppify.engine._state.merge_issues import upsert_issues
 
 # ---------------------------------------------------------------------------
 # Helpers
