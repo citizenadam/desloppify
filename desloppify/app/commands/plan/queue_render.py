@@ -183,6 +183,7 @@ def _build_queue_items(
     subjective_threshold: float,
 ) -> tuple[list[dict], dict]:
     """Build queue items with focus/collapse view transforms applied."""
+    context = queue_context(state, config=config, plan=plan)
     queue = build_execution_queue(
         state,
         options=QueueBuildOptions(

@@ -34,6 +34,27 @@ def _queue_plan_from_options(options: QueueBuildOptions) -> dict | None:
     return options.plan
 
 
+def _resolved_queue_options(
+    state: StateModel,
+    options: QueueBuildOptions | None,
+) -> QueueBuildOptions:
+    """Use the resolved target unless the caller explicitly overrides it."""
+    opts = options or QueueBuildOptions()
+    threshold = opts.subjective_threshold
+    if threshold == QueueBuildOptions().subjective_threshold:
+        threshold = (
+            opts.context.target_strict
+            if opts.context is not None
+            else _subjective_threshold(state)
+        )
+    ctx = opts.context or queue_context(
+        state,
+        plan=_queue_plan_from_options(opts),
+        target_strict=threshold,
+    )
+    return replace(opts, context=ctx, subjective_threshold=threshold)
+
+
 def build_open_plan_queue(
     state: StateModel,
     *,
