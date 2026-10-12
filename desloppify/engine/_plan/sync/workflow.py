@@ -6,22 +6,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from desloppify.engine._plan.refresh_lifecycle import (
-    subjective_review_completed_for_scan,
-)
-from desloppify.engine._plan.policy import stale as stale_policy_mod
 from desloppify.engine._plan.constants import (
     SUBJECTIVE_PREFIX,
     TRIAGE_IDS,
-    normalize_queue_workflow_and_triage_prefix,
     WORKFLOW_COMMUNICATE_SCORE_ID,
     WORKFLOW_CREATE_PLAN_ID,
     WORKFLOW_IMPORT_SCORES_ID,
     WORKFLOW_SCORE_CHECKPOINT_ID,
     QueueSyncResult,
+    normalize_queue_workflow_and_triage_prefix,
+)
+from desloppify.engine._plan.policy import stale as stale_policy_mod
+from desloppify.engine._plan.policy.subjective import SubjectiveVisibility
+from desloppify.engine._plan.refresh_lifecycle import (
+    subjective_review_completed_for_scan,
 )
 from desloppify.engine._plan.schema import PlanModel, ensure_plan_defaults
-from desloppify.engine._plan.policy.subjective import SubjectiveVisibility
 from desloppify.engine._state.schema import StateModel
 
 from .context import has_objective_backlog
@@ -365,9 +365,9 @@ def sync_create_plan_needed(
     # review findings are all closed, that old prompt is stale: a new full
     # triage run would have no review set to process.
     triage_meta = plan.get("epic_triage_meta", {})
-    triage_was_completed = bool(
-        triage_meta.get("last_completed_at") or triage_meta.get("triaged_ids")
-    ) if isinstance(triage_meta, dict) else False
+    triage_was_completed = (
+        isinstance(triage_meta, dict) and bool(triage_meta.get("last_completed_at"))
+    )
     if triage_was_completed and not stale_policy_mod.open_review_ids(state):
         if WORKFLOW_CREATE_PLAN_ID not in order:
             return _EMPTY()
