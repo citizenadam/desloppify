@@ -96,6 +96,30 @@ def test_file_checks_cover_edge_auth_json_parse_and_rls_detection() -> None:
     assert "rls_bypass_views" in _kinds(sql_combined)
 
 
+def test_json_parse_on_same_line_as_try_catch_is_guarded() -> None:
+    lines = [
+        "const parse = async () => { try { return JSON.parse(serialized); } catch { return null; } }",
+        "try { JSON.parse(first); } catch {} try { JSON.parse(second); } catch (error) {}",
+    ]
+    entries: list[dict[str, object]] = []
+
+    file_checks_mod._check_json_parse_unguarded("src/parse.ts", lines, entries)
+
+    assert entries == []
+
+
+def test_json_parse_after_try_or_inside_catch_remains_unguarded() -> None:
+    lines = [
+        "try { operation(); } catch {} JSON.parse(afterTry);",
+        "try { operation(); } catch { JSON.parse(insideCatch); }",
+    ]
+    entries: list[dict[str, object]] = []
+
+    file_checks_mod._check_json_parse_unguarded("src/parse.ts", lines, entries)
+
+    assert [entry["detail"]["line"] for entry in entries] == [1, 2]
+
+
 def test_line_checks_report_expected_security_kinds() -> None:
     service_role_lines = [
         "const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY",
