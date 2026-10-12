@@ -81,9 +81,14 @@ def filter_snapshot_items(
             and not (has_objective_issue and is_review_work_item(item))
         ]
     if opts.scope:
+        # Workflow transitions remain in the unfiltered queue so a global
+        # empty boundary can still surface the required postflight scan. A
+        # scoped view only displays a transition when it matches that scope.
         filtered = [
             item for item in filtered
-            if item.get("kind") != "subjective_dimension" or scope_matches(item, opts.scope)
+            if item.get("kind")
+            not in {"subjective_dimension", "workflow_stage", "workflow_action"}
+            or scope_matches(item, opts.scope)
         ]
     return filtered
 
