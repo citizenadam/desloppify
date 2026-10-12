@@ -193,6 +193,7 @@ def _build_queue_items(
             subjective_threshold=subjective_threshold,
             plan=plan,
             include_skipped=include_skipped,
+            context=context,
         ),
     )
     items = queue.get("items", [])

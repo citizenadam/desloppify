@@ -46,6 +46,24 @@ def _state(issues: list[dict], *, dimension_scores: dict | None = None) -> dict:
     }
 
 
+def test_triage_stage_count_includes_only_open_review_work_items():
+    from desloppify.engine._work_queue.synthetic import build_triage_stage_items
+
+    state = _state(
+        [
+            _issue("review::a", detector="review"),
+            _issue("review::b", detector="concerns"),
+            _issue("smells::src/a.py::x", detector="smells"),
+            _issue("unused::src/b.py::y", detector="unused"),
+        ]
+    )
+
+    items = build_triage_stage_items({"queue_order": ["triage::observe"]}, state)
+
+    assert [item["id"] for item in items] == ["triage::observe"]
+    assert items[0]["detail"]["total_review_issues"] == 2
+
+
 # ── Cluster collapse ─────────────────────────────────────
 
 

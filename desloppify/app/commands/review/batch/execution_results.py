@@ -145,7 +145,7 @@ def merge_and_write_results(
     review_scope["imported_dimensions"] = merged_imported_dims
     missing_scored_dimensions = print_import_dimension_coverage_notice(
         assessed_dims=merged_assessment_dims,
-        scored_dims=scored_dimensions,
+        scored_dims=packet_dimensions,
         scan_path=scan_path,
         colorize_fn=colorize_fn,
     )
