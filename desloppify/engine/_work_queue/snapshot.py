@@ -220,6 +220,12 @@ def _subjective_partitions(
     candidates = build_subjective_items(
         state, scoped_issues, threshold=threshold, plan=plan
     )
+    # Skipped subjective candidates must not influence phase selection. Unlike
+    # issue candidates, these synthetic items are generated from assessment
+    # state and are otherwise unaware of plan dispositions. Filtering them
+    # here keeps the phase snapshot consistent with final queue visibility.
+    skipped_ids = set((plan or {}).get("skipped", {}))
+    candidates = [item for item in candidates if item.get("id") not in skipped_ids]
     initial = [item for item in candidates if item.get("initial_review")]
     postflight = [item for item in candidates if not item.get("initial_review")]
     return initial, postflight
