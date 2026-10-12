@@ -285,7 +285,7 @@ def _workflow_partitions(
             build_score_checkpoint_item(plan, state),
             build_import_scores_item(plan, state),
             build_communicate_score_item(plan, state),
-            build_create_plan_item(plan),
+            build_create_plan_item(plan, state),
         )
         if item is not None
     ]
@@ -619,6 +619,20 @@ def build_queue_snapshot(
     )
 
     fresh_boundary = _is_fresh_boundary(effective_plan)
+    if effective_plan is not None:
+        queue_order = effective_plan.get("queue_order", [])
+        skipped_ids = set(effective_plan.get("skipped", {}))
+        queued_ids = {
+            issue_id
+            for issue_id in queue_order
+            if isinstance(issue_id, str) and issue_id not in skipped_ids
+        }
+        # The first scan seeds plan_start_scores after reconciliation. Keep
+        # initial reviews actionable when that same scan also queued them;
+        # the newly seeded baseline must not hide the work just created.
+        fresh_boundary = fresh_boundary or any(
+            item.get("id", "") in queued_ids for item in p.initial_review_items
+        )
 
     phase = _phase_for_snapshot(
         effective_plan,
