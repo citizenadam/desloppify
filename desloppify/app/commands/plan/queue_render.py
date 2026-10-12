@@ -183,15 +183,17 @@ def _build_queue_items(
     config: dict,
 ) -> tuple[list[dict], dict]:
     """Build queue items with focus/collapse view transforms applied."""
+    context = queue_context(state, config=config, plan=plan)
     queue = build_execution_queue(
         state,
         options=QueueBuildOptions(
             count=None,
             status="open",
             include_subjective=True,
+            subjective_threshold=context.target_strict,
             plan=plan,
             include_skipped=include_skipped,
-            context=queue_context(state, config=config, plan=plan),
+            context=context,
         ),
     )
     items = queue.get("items", [])
