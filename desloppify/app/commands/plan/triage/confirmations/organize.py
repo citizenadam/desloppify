@@ -83,10 +83,10 @@ def _print_cluster_shape_warnings(plan: dict) -> None:
 
     high_ratio = _clusters_with_high_step_ratio(plan)
     if high_ratio:
-        print(colorize(f"\n  Warning: {len(high_ratio)} cluster(s) have step count ≥ issue count:", "yellow"))
+        print(colorize(f"\n  Warning: {len(high_ratio)} cluster(s) have more steps than issues:", "yellow"))
         for name, steps, issues, ratio in high_ratio:
             print(colorize(f"    {name}: {steps} steps for {issues} issues ({ratio:.1f}x)", "yellow"))
-        print(colorize("  Steps should consolidate changes to the same file. 1:1 means each issue is its own step.", "dim"))
+        print(colorize("  Consolidate related changes; one step may cover several issues.", "dim"))
 
     _print_cluster_overlap_notes(plan, _cluster_file_overlaps(plan))
 

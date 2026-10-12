@@ -126,12 +126,10 @@ def unenriched_clusters(
     clusters = plan.get("clusters", {})
     for name in scoped_manual_clusters_with_issues(plan, state):
         cluster = clusters.get(name, {})
-        issue_ids = cluster_issue_ids(cluster)
         missing: list[str] = []
         if not cluster.get("description"):
             missing.append("description")
         steps = cluster.get("action_steps") or []
-        issue_count = len(issue_ids)
         if not steps:
             missing.append("action_steps")
         elif issue_count < 5 and len(steps) < issue_count:
