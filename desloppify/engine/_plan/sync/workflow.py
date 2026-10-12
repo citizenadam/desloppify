@@ -360,6 +360,23 @@ def sync_create_plan_needed(
     ensure_plan_defaults(plan)
     order: list[str] = plan["queue_order"]
 
+    # The create-plan action may be injected for an objective-only backlog
+    # before triage has ever run. Once a completed triage cycle exists and its
+    # review findings are all closed, that old prompt is stale: a new full
+    # triage run would have no review set to process.
+    triage_meta = plan.get("epic_triage_meta", {})
+    triage_was_completed = bool(
+        triage_meta.get("last_completed_at") or triage_meta.get("triaged_ids")
+    ) if isinstance(triage_meta, dict) else False
+    if triage_was_completed and not stale_policy_mod.open_review_ids(state):
+        if WORKFLOW_CREATE_PLAN_ID not in order:
+            return _EMPTY()
+        order[:] = [item for item in order if item != WORKFLOW_CREATE_PLAN_ID]
+        skipped = plan.get("skipped", {})
+        if isinstance(skipped, dict):
+            skipped.pop(WORKFLOW_CREATE_PLAN_ID, None)
+        return QueueSyncResult(pruned=[WORKFLOW_CREATE_PLAN_ID])
+
     if WORKFLOW_CREATE_PLAN_ID in order:
         return _EMPTY()
     # Already resolved this cycle — sentinel is set when injected and

@@ -244,7 +244,7 @@ def _workflow_partitions(
             build_score_checkpoint_item(plan, state),
             build_import_scores_item(plan, state),
             build_communicate_score_item(plan, state),
-            build_create_plan_item(plan),
+            build_create_plan_item(plan, state),
         )
         if item is not None
     ]

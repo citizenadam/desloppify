@@ -163,10 +163,22 @@ def build_score_checkpoint_item(plan: dict, state: dict) -> WorkflowActionItem |
     )
 
 
-def build_create_plan_item(plan: dict) -> WorkflowActionItem | None:
+def build_create_plan_item(
+    plan: dict,
+    state: dict | None = None,
+) -> WorkflowActionItem | None:
     """Build a synthetic work item for ``workflow::create-plan`` if queued."""
     if WORKFLOW_CREATE_PLAN_ID not in plan.get("queue_order", []):
         return None
+    if state is not None:
+        from desloppify.engine._plan.policy.stale import open_review_ids
+
+        meta = plan.get("epic_triage_meta", {})
+        triage_was_completed = isinstance(meta, dict) and bool(
+            meta.get("last_completed_at") or meta.get("triaged_ids")
+        )
+        if triage_was_completed and not open_review_ids(state):
+            return None
 
     return _workflow_action_item(
         item_id=WORKFLOW_CREATE_PLAN_ID,

@@ -505,6 +505,23 @@ def test_sync_workflow_helpers_inject_expected_items(monkeypatch) -> None:
     assert sync_workflow_mod._no_unscored(state, policy=None) is False
 
 
+def test_sync_create_plan_prunes_stale_prompt_after_completed_triage() -> None:
+    plan = {
+        "queue_order": ["workflow::create-plan", "unused::still-open"],
+        "epic_triage_meta": {
+            "last_completed_at": "2026-10-12T00:00:00Z",
+            "triaged_ids": ["review::already-resolved"],
+        },
+    }
+    state = {"issues": {"unused::still-open": {"status": "open", "detector": "unused"}}}
+    policy = SimpleNamespace(unscored_ids=set(), has_objective_backlog=True)
+
+    result = sync_workflow_mod.sync_create_plan_needed(plan, state, policy=policy)
+
+    assert result.pruned == ["workflow::create-plan"]
+    assert plan["queue_order"] == ["unused::still-open"]
+
+
 def test_sync_import_scores_prunes_stale_workflow_after_trusted_import() -> None:
     plan = {
         "queue_order": ["workflow::import-scores", "review::x"],

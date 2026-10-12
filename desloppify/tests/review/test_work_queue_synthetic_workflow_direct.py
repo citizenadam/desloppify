@@ -138,6 +138,21 @@ def test_build_create_plan_item_advances_to_next_pending_stage() -> None:
     )
 
 
+def test_completed_triage_with_no_open_review_does_not_advertise_empty_triage() -> None:
+    from desloppify.engine._plan.constants import WORKFLOW_CREATE_PLAN_ID
+
+    plan = {
+        "queue_order": [WORKFLOW_CREATE_PLAN_ID],
+        "epic_triage_meta": {
+            "last_completed_at": "2026-10-12T00:00:00Z",
+            "triaged_ids": ["review::already-resolved"],
+            "triage_stages": {},
+        },
+    }
+
+    assert workflow_mod.build_create_plan_item(plan, {"issues": {}}) is None
+
+
 def test_triage_stage_order_contract_keeps_sense_check_before_commit() -> None:
     sense_check = {
         "kind": "workflow_stage",
