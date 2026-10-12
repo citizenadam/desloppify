@@ -134,7 +134,7 @@ def _mask_typescript_non_code(source: str) -> str:
             continue
         if source[i] in {"'", '"', "`"}:
             quote = source[i]
-            j = i
+            j = i + 1
             while j < len(source):
                 if source[j] == "\\":
                     j += 2
@@ -174,6 +174,46 @@ def _inside_function_body(source: str, start: int, target: int) -> bool:
             continue
         body_close = _matching_brace(source, body_open)
         if body_close is not None and body_open < target < body_close:
+            return True
+
+    for match in re.finditer(r"=>", source[start:target]):
+        body_start = start + match.end()
+        while body_start < target and source[body_start].isspace():
+            body_start += 1
+        if body_start > target:
+            continue
+        if source[body_start] == "{":
+            body_close = _matching_brace(source, body_start)
+            if body_close is not None and body_start < target < body_close:
+                return True
+            continue
+
+        parens = brackets = braces = 0
+        for i in range(body_start, target):
+            char = source[i]
+            if char == "(":
+                parens += 1
+            elif char == ")":
+                if parens == 0:
+                    break
+                parens -= 1
+            elif char == "[":
+                brackets += 1
+            elif char == "]":
+                if brackets == 0:
+                    break
+                brackets -= 1
+            elif char == "{":
+                braces += 1
+            elif char == "}":
+                if braces == 0:
+                    break
+                braces -= 1
+            elif char == ";" and parens == brackets == braces == 0:
+                break
+            elif char == "," and parens == brackets == braces == 0:
+                break
+        else:
             return True
     return False
 

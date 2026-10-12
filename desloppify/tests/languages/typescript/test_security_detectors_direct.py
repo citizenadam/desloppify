@@ -120,6 +120,20 @@ def test_json_parse_after_try_or_inside_catch_remains_unguarded() -> None:
     assert [entry["detail"]["line"] for entry in entries] == [1, 2]
 
 
+def test_json_parse_scope_ignores_string_syntax_and_nested_arrows() -> None:
+    lines = [
+        'const brace = "}"; try { JSON.parse(guarded); } catch {}',
+        'const example = "try { } catch {}"; JSON.parse(unguarded);',
+        "try { const parseLater = () => JSON.parse(callbackValue); } catch {}",
+        "try { const noop = () => 0; JSON.parse(afterArrow); } catch {}",
+    ]
+    entries: list[dict[str, object]] = []
+
+    file_checks_mod._check_json_parse_unguarded("src/parse.ts", lines, entries)
+
+    assert [entry["detail"]["line"] for entry in entries] == [2, 3]
+
+
 def test_line_checks_report_expected_security_kinds() -> None:
     service_role_lines = [
         "const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY",
