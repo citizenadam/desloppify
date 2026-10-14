@@ -149,6 +149,8 @@ def _build_from_compile_commands(
     if not isinstance(payload, list):
         return finalize_graph(graph)
 
+    expanded: set[tuple[str, tuple[Path, ...]]] = set()
+    include_specs: dict[str, list[tuple[str, bool]]] = {}
     for entry in payload:
         if not isinstance(entry, dict):
             continue
@@ -180,8 +182,23 @@ def _build_from_compile_commands(
             )
             if resolved is None or resolved == source:
                 continue
-            graph[source]["imports"].add(resolved)
-            graph[resolved]["importers"].add(source)
+            expanded.add(key)
+            if current not in include_specs:
+                include_specs[current] = _read_include_specs(current)
+            for include_spec, is_quoted in include_specs[current]:
+                resolved = _resolve_with_compile_commands(
+                    include_spec,
+                    is_quoted=is_quoted,
+                    source_file=Path(current),
+                    scan_root=path,
+                    include_dirs=include_dirs,
+                    file_index=file_index,
+                )
+                if resolved is None or resolved == current:
+                    continue
+                graph[current]["imports"].add(resolved)
+                graph[resolved]["importers"].add(current)
+                pending.append(resolved)
 
     return finalize_graph(graph)
 
