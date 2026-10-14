@@ -17,7 +17,7 @@ from desloppify.languages._framework.base.shared_phases import (
 from desloppify.languages._framework.base.types import LangRuntimeContract
 from desloppify.languages._framework.generic_parts.parsers import PARSERS
 from desloppify.languages._framework.generic_parts.tool_factories import _record_tool_failure_coverage
-from desloppify.languages._framework.generic_parts.tool_runner import run_tool_result
+from desloppify.languages._framework.generic_parts.tool_runner import ToolRunResult, run_tool_result
 from desloppify.languages.cxx._helpers import build_cxx_dep_graph
 from desloppify.languages.cxx.extractors import CXX_HEADER_EXTENSIONS, find_cxx_files
 from desloppify.state_io import Issue
