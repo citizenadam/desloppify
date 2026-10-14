@@ -271,7 +271,7 @@ def detect_orphaned_files(
     total_files = len(graph)
     entries = []
     for filepath, entry in graph.items():
-        if entry["importer_count"] > 0:
+        if entry["importer_count"] > 0 or entry.get("is_entry_point") is True:
             continue
 
         # Graphs may carry nodes that are not scored source files (e.g. Razor
