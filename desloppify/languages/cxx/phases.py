@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import shlex
+import tempfile
 
 from desloppify.base.output.terminal import log
 from desloppify.engine.detectors.base import ComplexitySignal
@@ -155,6 +156,25 @@ def phase_cppcheck_issue(
             entries.extend(single_result.entries)
         if not recovered and failure_result is None:
             failure_result = batch_result
+
+    if any(_is_unused_function(entry) for entry in entries):
+        # Batch-local unused claims are unproven. Only a complete-project pass
+        # can establish that no other translation unit calls the function.
+        entries = [entry for entry in entries if not _is_unused_function(entry)]
+        whole = _run_cppcheck_whole_program(path, files)
+        configuration_ids = {"missingInclude", "missingIncludeSystem", "syntaxError", "unknownMacro", "preprocessorErrorDirective"}
+        incomplete = any(
+            len(fields := entry["message"].split(": ", 2)) == 3 and fields[1] in configuration_ids
+            for entry in whole.entries
+        )
+        if whole.status == "error" or incomplete:
+            if failure_result is None:
+                failure_result = whole if whole.status == "error" else ToolRunResult(
+                    entries=[], status="error", error_kind="tool_configuration",
+                    message="Whole-program unused-function analysis has configuration/parser notices",
+                )
+        else:
+            entries.extend(entry for entry in whole.entries if _is_unused_function(entry))
 
     if failure_result is not None:
         _record_tool_failure_coverage(
