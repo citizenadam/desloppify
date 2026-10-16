@@ -28,6 +28,7 @@ class SubjectiveAssessment(TypedDict, total=False):
 
     score: float
     source: str
+    assessment_import_id: str
     assessed_at: str
     reset_by: str
     placeholder: bool

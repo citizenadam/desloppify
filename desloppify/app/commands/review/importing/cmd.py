@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 from desloppify.app.commands.scan.artifacts import emit_scorecard_badge
 from desloppify.app.commands.scan.reporting import (
@@ -167,6 +168,7 @@ def _append_assessment_import_audit(
     append_assessment_import_audit(
         working_state,
         {
+            **reconcile_provenance,
             "timestamp": utc_now(),
             "scan_timestamp": str(working_state.get("last_scan", "") or ""),
             "assessment_timestamps": assessment_timestamps,

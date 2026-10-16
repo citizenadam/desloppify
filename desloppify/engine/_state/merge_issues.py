@@ -72,23 +72,18 @@ def _mark_scan_verified(
     attestation_text: str,
 ) -> bool:
     """Refresh corroboration and return whether it adds new absence evidence."""
-    existing = issue.get("resolution_attestation")
-    if not isinstance(existing, dict):
-        existing = {}
-        issue["resolution_attestation"] = existing
-    last_seen = str(issue.get("last_seen") or "")
-    verified_at = str(existing.get("scan_verified_at") or "")
-    # Rechecking the same absence only refreshes recency. A later sighting
-    # (possible for wontfix issues) or a changed verification scope is new.
-    new_evidence = (
-        not existing.get("scan_verified")
-        or existing.get("scan_verification_text") != attestation_text
-        or bool(last_seen and (not verified_at or last_seen > verified_at))
-    )
     issue["suppressed"] = False
     issue["suppressed_at"] = None
     issue["suppression_pattern"] = None
     issue["note"] = note
+    existing = issue.get("resolution_attestation")
+    if not isinstance(existing, dict):
+        existing = {}
+        issue["resolution_attestation"] = existing
+    new_evidence = (
+        not existing.get("scan_verified")
+        or existing.get("scan_verification_text") != attestation_text
+    )
     existing["scan_verified"] = True
     existing["scan_verified_at"] = now
     existing["scan_verification_text"] = attestation_text
@@ -218,6 +213,15 @@ def verify_disappeared(
         if previous.get("detector", "unknown") in suspect_detectors:
             continue
 
+        # Review imports only run review/concern detectors and cannot
+        # corroborate manually resolved mechanical findings.
+        if (
+            previous_status != "open"
+            and confirmed_detectors is not None
+            and previous.get("detector", "unknown") not in confirmed_detectors
+        ):
+            continue
+
         if scan_path and scan_path != ".":
             prefix = scan_path.rstrip("/") + "/"
             if (
@@ -303,6 +307,7 @@ def upsert_issues(
     *,
     lang: str | None,
     ignore_metadata: Mapping[str, Any] | None = None,
+    canonical_false_positive_ids: frozenset[str] = frozenset(),
 ) -> tuple[set[str], int, int, dict[str, int], int, set[str]]:
     """Insert new issues and update existing ones.
 
@@ -379,6 +384,13 @@ def upsert_issues(
         previous["suppressed_at"] = None
         previous["suppression_pattern"] = None
 
+        # A reappearing accepted finding ends its corroborated absence even
+        # when both scans share the same timestamp second.
+        if previous["status"] == "wontfix":
+            attestation = previous.get("resolution_attestation")
+            if isinstance(attestation, dict):
+                attestation["scan_verified"] = False
+
         if previous["status"] in ("fixed", "auto_resolved", "false_positive"):
             # Review-request issues are condition-based. When just
             # completed by an agent import, skip reopening to avoid a
@@ -401,7 +413,13 @@ def upsert_issues(
                 ),
             )
             reopened_count += 1
-            changed_detectors.add(detector)
+            # Keep raw reopen semantics, while excluding only a same-ID
+            # false positive that canonical plan policy will restore.
+            if (
+                previous_status != "false_positive"
+                or issue_id not in canonical_false_positive_ids
+            ):
+                changed_detectors.add(detector)
 
     return current_ids, new_count, reopened_count, by_detector, ignored_count, changed_detectors
 

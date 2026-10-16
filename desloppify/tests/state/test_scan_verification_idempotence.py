@@ -183,3 +183,19 @@ def test_wontfix_reappearance_then_absence_is_new_evidence(monkeypatch):
         state["subjective_assessments"]["design_coherence"]["needs_review_refresh"]
         is True
     )
+
+
+def test_wontfix_reappearance_within_same_second_is_new_evidence(monkeypatch):
+    state, issue = _state_with_resolution("wontfix")
+    options = merge_mod.MergeScanOptions(
+        force_resolve=True, potentials={"structural": 1}
+    )
+    monkeypatch.setattr(merge_mod, "utc_now", lambda: FIRST_SCAN)
+    merge_mod.merge_scan(state, [], options)
+    assert issue["resolution_attestation"]["scan_verified"]
+    _fresh_review(state)
+    merge_mod.merge_scan(state, [copy.deepcopy(issue)], options)
+    assert not issue["resolution_attestation"]["scan_verified"]
+    result = merge_mod.merge_scan(state, [], options)
+    assert result["auto_resolved"] == 1
+    assert state["subjective_assessments"]["design_coherence"]["needs_review_refresh"]

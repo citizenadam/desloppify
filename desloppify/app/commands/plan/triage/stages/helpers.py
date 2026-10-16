@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from desloppify.base.output.terminal import colorize
+from desloppify.engine._plan.cluster_semantics import (
+    EXECUTION_STATUS_DONE,
+    infer_cluster_execution_status,
+)
 from desloppify.engine._plan.constants import is_synthetic_id
 from desloppify.engine._plan.triage.protection import protected_review_issue_ids
 from desloppify.engine._state.issue_semantics import (
@@ -83,10 +87,18 @@ def scoped_manual_clusters_with_issues(
     names = manual_clusters_with_issues(plan)
     if scope is None:
         return names
+    raw_scope = (plan.get("epic_triage_meta", {}) or {}).get("active_triage_issue_ids")
+    if not scope and isinstance(raw_scope, list) and not raw_scope:
+        # A workflow-only triage still validates its current manual work,
+        # without retroactively enriching completed historical clusters.
+        return [
+            name
+            for name in names
+            if infer_cluster_execution_status(clusters.get(name, {}))
+            != EXECUTION_STATUS_DONE
+        ]
     return [
-        name
-        for name in names
-        if set(cluster_issue_ids(clusters.get(name, {}))) & scope
+        name for name in names if set(cluster_issue_ids(clusters.get(name, {}))) & scope
     ]
 
 
@@ -182,15 +194,15 @@ def unclustered_review_issues(plan: dict, state: dict | None = None) -> list[str
             review_ids = [fid for fid in review_ids if fid in triage_scope]
     else:
         review_ids = [
-            fid for fid in plan.get("queue_order", [])
+            fid
+            for fid in plan.get("queue_order", [])
             if not is_synthetic_id(fid)
             and (fid.startswith("review::") or fid.startswith("concerns::"))
             and fid not in protected_ids
         ]
 
     return [
-        fid for fid in review_ids
-        if fid not in clustered_ids and fid not in skipped_ids
+        fid for fid in review_ids if fid not in clustered_ids and fid not in skipped_ids
     ]
 
 

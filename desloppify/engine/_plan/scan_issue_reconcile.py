@@ -377,6 +377,22 @@ def _reconcile_epic_clusters(
         result.changes += 1
 
 
+def active_false_positive_skip_ids(plan: PlanModel) -> frozenset[str]:
+    """Return exact skips that scan reconciliation will restore as false positives.
+
+    Only temporary skips expire via review_after. Explicit false-positive
+    skips remain active until removed or superseded.
+    """
+    superseded = plan.get("superseded", {})
+    return frozenset(
+        issue_id
+        for issue_id, entry in plan.get("skipped", {}).items()
+        if issue_id not in superseded
+        and isinstance(entry, dict)
+        and entry.get("kind") == "false_positive"
+    )
+
+
 def _sync_skipped_issue_statuses(plan: PlanModel, state: StateModel) -> None:
     """Sync state status for skipped issues that are still 'open'.
 
@@ -517,4 +533,5 @@ def reconcile_plan_after_scan(
 __all__ = [
     "ReconcileResult",
     "reconcile_plan_after_scan",
+    "active_false_positive_skip_ids",
 ]
