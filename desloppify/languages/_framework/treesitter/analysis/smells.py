@@ -40,7 +40,7 @@ _BLOCK_NODE_TYPES = frozenset({
 
 # Node types to ignore when checking if a block is "empty".
 _IGNORABLE_NODE_TYPES = frozenset({
-    "comment", "{", "}", ":", "pass_statement", "do", "end",
+    "comment", "{", "}", ":", ";", "pass_statement", "do", "end",
     "catch", "rescue", "except", "finally",
 })
 
@@ -91,6 +91,20 @@ def _is_empty_handler(catch_node) -> bool:
         if child.type in _BLOCK_NODE_TYPES:
             body = child
             break
+
+    if body is None and catch_node.type == "catch_clause":
+        # Dart's try_statement keeps a catch_clause and its block as adjacent
+        # siblings instead of nesting the block in catch_clause.
+        parent = getattr(catch_node, "parent", None)
+        if parent is not None and parent.type == "try_statement":
+            sibling = catch_node.next_named_sibling
+            while sibling is not None and sibling.type in _IGNORABLE_NODE_TYPES:
+                sibling = sibling.next_named_sibling
+            # Missing or unexpected bodies are incomplete syntax, not proof
+            # that the handler is empty.
+            if sibling is None or sibling.type not in _BLOCK_NODE_TYPES:
+                return False
+            body = sibling
 
     if body is None:
         # Some grammars inline the body as direct children of the catch clause.
@@ -210,9 +224,29 @@ def _check_sequence_for_unreachable(block_node, filepath: str, entries: list[dic
             # Only flag the first unreachable node per terminator.
             saw_terminator = False
 
-        if child.type in _TERMINATOR_TYPES:
+        terminal = _terminator_type(child)
+        if terminal is not None:
             saw_terminator = True
-            terminator_type = child.type
+            terminator_type = terminal
+
+
+def _terminator_type(node) -> str | None:
+    """Return the terminating statement type, including wrapped Dart throws."""
+    if node.type in _TERMINATOR_TYPES:
+        return node.type
+
+    # Dart parses a block-bodied `throw value;` as an expression_statement
+    # containing throw_expression. Do not descend into larger expressions:
+    # a conditional expression containing `throw` does not terminate every
+    # path through the expression.
+    if node.type == "expression_statement":
+        meaningful = [
+            child for child in node.children
+            if child.type not in _IGNORABLE_NODE_TYPES
+        ]
+        if len(meaningful) == 1 and meaningful[0].type == "throw_expression":
+            return "throw_expression"
+    return None
 
 
 __all__ = [
