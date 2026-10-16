@@ -1,8 +1,8 @@
 """Preflight guards for subjective review reruns.
 
 Blocks reruns while backlog remains (objective issues and/or subjective queue
-work), unless ``--force-review-rerun`` is set. Also clears stale subjective
-markers before a new cycle.
+work), unless ``--force-review-rerun`` is set. Queue context uses the command
+config. Also clears stale subjective markers before a new cycle.
 """
 
 from __future__ import annotations
