@@ -790,8 +790,8 @@ def test_override_skip_helpers_and_commands(monkeypatch, capsys) -> None:
     )
     monkeypatch.setattr(
         override_skip_mod.state_mod,
-        "resolve_issues",
-        lambda _state, fid, _status: [fid],
+        "resolve_issue_ids",
+        lambda _state, issue_ids, _status: issue_ids,
     )
     monkeypatch.setattr(override_skip_mod, "append_log_entry", lambda *_a, **_k: None)
     monkeypatch.setattr(
@@ -906,8 +906,8 @@ def test_cmd_plan_unskip_reconciles_with_reopened_state(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         override_skip_mod.state_mod,
-        "resolve_issues",
-        lambda _state, fid, _status: [fid],
+        "resolve_issue_ids",
+        lambda _state, issue_ids, _status: issue_ids,
     )
     monkeypatch.setattr(
         override_skip_mod, "invalidate_postflight_scan", lambda *_a, **_k: True
@@ -969,8 +969,8 @@ def test_cmd_plan_backlog_reconciles_after_invalidation(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         override_skip_mod.state_mod,
-        "resolve_issues",
-        lambda _state, fid, _status: [fid],
+        "resolve_issue_ids",
+        lambda _state, issue_ids, _status: issue_ids,
     )
     monkeypatch.setattr(override_skip_mod, "append_log_entry", lambda *_a, **_k: None)
     monkeypatch.setattr(
