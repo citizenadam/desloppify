@@ -234,6 +234,7 @@ def derive_display_phase(
     has_execution: bool,
     fresh_boundary: bool,
     prefer_scan: bool,
+    has_reassessment_blockers: bool = False,
     has_promoted_execution: bool = False,
 ) -> str:
     """Return the canonical display phase from normalized boolean signals."""
