@@ -3,6 +3,7 @@
 from desloppify.languages._framework.generic_support.core import generic_lang
 from desloppify.languages._framework.treesitter import KOTLIN_SPEC
 from desloppify.languages.kotlin._zones import KOTLIN_ZONE_RULES
+from desloppify.languages.kotlin.fixers import make_ktlint_fixer
 
 _config = generic_lang(
     name="kotlin",

@@ -236,7 +236,7 @@ class TestParseEslint:
 
 
 class TestParseKtlint:
-    def test_extracts_errors_with_rule_suffix(self):
+    def test_extracts_errors_with_rule_detail(self):
         payload = [
             {
                 "file": "src/main/Foo.kt",
@@ -255,18 +255,23 @@ class TestParseKtlint:
             {
                 "file": "src/main/Foo.kt",
                 "line": 10,
-                "message": "Newline expected (standard:class-signature)",
+                "message": "Newline expected",
+                "id": "ktlint_violation::standard:class-signature::10:5",
+                "detail": {"rule": "standard:class-signature", "column": 5},
             }
         ]
 
     def test_handles_multiple_files_and_errors(self):
         payload = [
-            {"file": "a.kt", "errors": [{"line": 1, "message": "m1", "rule": "r1"}]},
+            {
+                "file": "a.kt",
+                "errors": [{"line": 1, "column": 1, "message": "m1", "rule": "r1"}],
+            },
             {
                 "file": "b.kt",
                 "errors": [
-                    {"line": 2, "message": "m2", "rule": "r2"},
-                    {"line": 3, "message": "m3", "rule": "r3"},
+                    {"line": 2, "column": 1, "message": "m2", "rule": "r2"},
+                    {"line": 3, "column": 2, "message": "m3", "rule": "r3"},
                 ],
             },
         ]
@@ -275,6 +280,8 @@ class TestParseKtlint:
         assert entries[0]["file"] == "a.kt"
         assert entries[1]["file"] == "b.kt" and entries[1]["line"] == 2
         assert entries[2]["line"] == 3
+        assert entries[2]["detail"]["column"] == 2
+        assert len({entry["id"] for entry in entries}) == 3
 
     def test_file_with_no_errors_yields_nothing(self):
         payload = [{"file": "clean.kt", "errors": []}]
@@ -286,6 +293,24 @@ class TestParseKtlint:
     def test_invalid_json(self):
         with pytest.raises(ToolParserError):
             parse_ktlint("not json", Path("."))
+
+
+def test_parser_module_has_no_shadowed_definitions():
+    """A second ``def`` of the same name silently wins over the first.
+
+    A merge that keeps both sides of a conflict — rather than resolving it —
+    leaves the stale definition bound last, so the parser the tests and tool
+    specs expect is never the one that runs.
+    """
+    import ast
+    import inspect
+
+    from desloppify.languages._framework.generic_parts import parsers
+
+    tree = ast.parse(inspect.getsource(parsers))
+    names = [node.name for node in tree.body if isinstance(node, ast.FunctionDef)]
+    shadowed = sorted({name for name in names if names.count(name) > 1})
+    assert shadowed == []
 
 
 class TestParsePhpstan:
