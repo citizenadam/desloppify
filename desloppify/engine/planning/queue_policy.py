@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from desloppify.base.config import DEFAULT_TARGET_STRICT_SCORE
 from desloppify.engine._state.schema import StateModel
-from desloppify.engine._work_queue.context import queue_context
+from desloppify.engine._work_queue.context import QueueContext, queue_context
 from desloppify.engine._work_queue.core import (
     QueueBuildOptions,
     QueueVisibility,
@@ -14,6 +14,7 @@ from desloppify.engine._work_queue.core import (
     _build_work_queue_with_visibility,
     build_work_queue,
 )
+from desloppify.engine._work_queue.inputs import resolve_queue_inputs
 
 
 def _subjective_threshold(state: StateModel, *, default: float = DEFAULT_TARGET_STRICT_SCORE) -> float:
