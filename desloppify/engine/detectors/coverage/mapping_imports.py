@@ -131,6 +131,9 @@ def _parse_test_imports(
             tested |= _resolve_barrel_reexports(resolved, production_files, lang_name)
             continue
 
+        if not getattr(mod, "ALLOW_MODULE_NAME_FALLBACK", True):
+            continue
+
         # Fallback: module-name lookup with progressively shorter prefixes.
         cleaned = spec.lstrip("./").replace("/", ".")
         parts = cleaned.split(".")
