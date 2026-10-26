@@ -174,6 +174,7 @@ def test_codex_batch_command_uses_sanitized_reasoning_effort(monkeypatch, tmp_pa
     assert any(c.endswith("codex") or "codex" in c for c in command[:3])
     assert "exec" in command
     assert "--ephemeral" in command
+    assert "--skip-git-repo-check" in command
     assert f'model_reasoning_effort="high"' in command
     assert str(tmp_path) in command
 

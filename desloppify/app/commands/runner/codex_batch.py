@@ -95,6 +95,8 @@ def codex_batch_command(*, prompt: str, repo_root: Path, output_file: Path) -> l
         *prefix,
         "exec",
         "--ephemeral",
+        # Scans also support source archives and directories without Git metadata.
+        "--skip-git-repo-check",
         "-C",
         str(repo_root),
         "-s",
