@@ -37,6 +37,7 @@ def test_build_dep_graph_from_compile_commands(tmp_path):
     assert str(source.resolve()) in graph
     assert str(header.resolve()) in graph[str(source.resolve())]["imports"]
 
+
 def test_build_dep_graph_distinguishes_angle_vs_quoted_include_resolution(tmp_path):
     source = _write(
         tmp_path,
