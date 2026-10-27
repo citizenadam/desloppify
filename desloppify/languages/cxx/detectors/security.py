@@ -23,6 +23,8 @@ from desloppify.languages._framework.generic_parts.tool_runner import (
     run_tool_result,
 )
 
+from desloppify.languages.cxx.cppcheck_diagnostics import configuration_checked_result
+
 logger = logging.getLogger(__name__)
 
 _SOURCE_SUFFIXES = frozenset({".c", ".cc", ".cpp", ".cxx"})
@@ -504,6 +506,7 @@ def _run_cppcheck_invocation(scan_root: Path, files: list[str]) -> CxxToolScanRe
         scan_root,
         _parse_cppcheck_output,
     )
+    result = configuration_checked_result(result)
     state = _tool_result_state(result)
     return CxxToolScanResult(
         tool="cppcheck",
