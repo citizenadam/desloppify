@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
-import shlex
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +12,7 @@ from desloppify.engine.detectors.graph import finalize_graph
 from desloppify.languages._framework.treesitter.imports.resolvers_backend import (
     resolve_cxx_include,
 )
+from desloppify.languages.cxx.compile_commands import load_compile_commands
 from desloppify.languages.cxx.extractors import find_cxx_files
 
 _TRANSLATION_UNIT_SUFFIXES = frozenset({".c", ".cc", ".cpp", ".cxx"})
