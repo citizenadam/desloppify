@@ -18,6 +18,10 @@ class TreeSitterLangSpec:
 
     import_query: str = ""
     resolve_import: Callable[[str, str, str], str | None] | None = None
+    # (imported name, regex) pairs: an import whose name never appears in the
+    # file still counts as used when the regex matches, e.g. Kotlin operator
+    # conventions (`getValue` is called by `by`, `contains` by `in`).
+    implicit_import_uses: tuple[tuple[str, str], ...] = ()
 
     # Returns the binding an import node introduces (name plus the statement
     # that declares it), or None when it binds nothing. Set it for languages
