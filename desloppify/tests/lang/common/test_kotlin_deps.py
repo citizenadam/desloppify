@@ -202,3 +202,14 @@ def test_kotlin_plugin_uses_package_aware_graph(tmp_path: Path) -> None:
     assert resolved[Path(a).resolve()]["importer_count"] == 1
     assert Path(b).resolve() in {Path(p).resolve() for p in resolved[Path(a).resolve()]["importers"]}
     assert ".gradle.kts" in lang.entry_patterns
+
+
+def test_kotlin_zones_put_gradle_scripts_in_config() -> None:
+    from desloppify.engine.policy.zones import Zone, classify_file
+    from desloppify.languages.kotlin import KOTLIN_ZONE_RULES
+
+    assert classify_file("app/build.gradle.kts", KOTLIN_ZONE_RULES) == Zone.CONFIG
+    assert classify_file("settings.gradle.kts", KOTLIN_ZONE_RULES) == Zone.CONFIG
+    assert classify_file("app/src/androidTest/java/p/UiTest.kt", KOTLIN_ZONE_RULES) == Zone.TEST
+    assert classify_file("app/src/test/java/p/UnitTest.kt", KOTLIN_ZONE_RULES) == Zone.TEST
+    assert classify_file("app/src/main/java/p/Screen.kt", KOTLIN_ZONE_RULES) == Zone.PRODUCTION
