@@ -44,9 +44,9 @@ fun interface Callback { fun call() }
 typealias Grid = Array<IntArray>
 """
     )
+    # `second` is private to its file, so other files cannot use it.
     assert top_level_names(code) == {
         "Screen",
-        "second",
         "belowBar",
         "MAX_ITEMS",
         "Point",
@@ -128,6 +128,22 @@ def test_names_in_comments_and_strings_do_not_link(tmp_path: Path) -> None:
     )
     graph = build_kotlin_dep_graph(tmp_path, [target, user])
     assert graph[target]["importer_count"] == 0
+
+
+def test_private_top_level_names_do_not_link_files(tmp_path: Path) -> None:
+    measurer = _write(
+        tmp_path,
+        "src/text/Measurer.kt",
+        "package text\n\nprivate fun Layout.lines() = 1\nclass Measurer { fun m(p: Pager) = p }\n",
+    )
+    pager = _write(
+        tmp_path,
+        "src/text/Pager.kt",
+        "package text\n\nclass Pager { fun page() { val lines = 3 } }\n",
+    )
+    graph = build_kotlin_dep_graph(tmp_path, [measurer, pager])
+    assert _imports(graph, measurer) == {pager}
+    assert _imports(graph, pager) == set()
 
 
 def test_manifest_components_are_entry_points(tmp_path: Path) -> None:

@@ -35,6 +35,7 @@ _IMPORT_RE = re.compile(
 )
 _DECLARATION_RE = re.compile(r"\b(class|interface|object|fun|val|var|typealias)\b")
 _IDENTIFIER_RE = re.compile(r"[A-Za-z_]\w*")
+_PRIVATE_RE = re.compile(r"\bprivate\b")
 # Words that can follow a declaration keyword but are not the declared name.
 _DECLARATION_NOISE = frozenset({"class", "interface", "object", "fun", "val", "var"})
 
@@ -173,13 +174,21 @@ def _declared_name(rest: str, keyword: str) -> str | None:
 
 
 def top_level_names(code: str) -> set[str]:
-    """Names declared at the top level of comment- and string-free Kotlin code."""
+    """Names other files can use: non-private top-level declarations.
+
+    ``code`` must be comment- and string-free. Private top-level declarations
+    are visible only inside their own file, so they never link files.
+    """
     names: set[str] = set()
     depth = 0
     for line in code.splitlines():
         if depth == 0:
             match = _DECLARATION_RE.search(line)
-            if match and not line.lstrip().startswith(("import ", "package ")):
+            if (
+                match
+                and not line.lstrip().startswith(("import ", "package "))
+                and not _PRIVATE_RE.search(line, 0, match.start())
+            ):
                 name = _declared_name(line[match.end() :], match.group(1))
                 if name:
                     names.add(name)
