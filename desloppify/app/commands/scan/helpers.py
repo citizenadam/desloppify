@@ -29,11 +29,16 @@ def audit_excluded_dirs(
     if not exclusions:
         return []
 
+    project_root = Path(project_root)
     candidate_dirs = [
         ex_dir
         for ex_dir in exclusions
         if ex_dir not in DEFAULT_EXCLUSIONS and (project_root / ex_dir).is_dir()
     ]
+    # A git-ignored directory (IDE settings, tool state, local data, nested
+    # worktrees) is not project code, so excluding it can never be stale.
+    ignored = git_ignored_paths(candidate_dirs, str(project_root))
+    candidate_dirs = [ex_dir for ex_dir in candidate_dirs if ex_dir not in ignored]
     if not candidate_dirs:
         return []
 

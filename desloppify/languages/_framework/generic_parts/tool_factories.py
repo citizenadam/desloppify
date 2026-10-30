@@ -8,6 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from desloppify.base.discovery.file_paths import matches_exclusion, rel
+from desloppify.base.discovery.source import DEFAULT_EXCLUSIONS, get_exclusions
 from desloppify.languages._framework.base.types import (
     DetectorPhase,
     FixerConfig,
