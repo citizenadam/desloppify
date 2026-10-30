@@ -1,6 +1,7 @@
-"""Kotlin language plugin — ktlint."""
+"""Kotlin language plugin — ktlint, package-aware import graph."""
 
-from desloppify.languages._framework.generic_support.core import generic_lang
+from desloppify.engine.policy.zones import Zone, ZoneRule
+from desloppify.languages._framework.generic_support.core import generic_lang, generic_zone_rules
 from desloppify.languages._framework.treesitter import KOTLIN_SPEC
 from desloppify.languages.kotlin._zones import KOTLIN_ZONE_RULES
 from desloppify.languages.kotlin.fixers import make_ktlint_fixer
@@ -29,6 +30,7 @@ _config.fixers["ktlint-violation"] = make_ktlint_fixer(_config.file_finder)
 _config.detect_commands["ktlint_violation"] = _config.fixers["ktlint-violation"].detect
 
 __all__ = [
+    "KOTLIN_ZONE_RULES",
     "generic_lang",
     "KOTLIN_SPEC",
     "KOTLIN_ZONE_RULES",
