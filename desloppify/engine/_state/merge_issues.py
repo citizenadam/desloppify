@@ -183,7 +183,8 @@ def verify_disappeared(
     Returns (resolved_count, skipped_other_lang, resolved_out_of_scope, changed_detectors).
     Queue-tracked work stays user-controlled unless the detector is known to
     have run in the current scan or the source file no longer exists. Manually
-    resolved items can be marked as scan-verified when they remain absent.
+    resolved items can be marked as scan-verified when they remain absent
+    from a detector confirmed to have run in this scan.
     """
     resolved = skipped_other_lang = resolved_out_of_scope = 0
     resolved_detectors: set[str] = set()
