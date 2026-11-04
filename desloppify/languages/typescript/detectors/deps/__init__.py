@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import defaultdict
 from functools import cache
@@ -14,6 +15,7 @@ from desloppify.base.discovery.paths import get_project_root
 from desloppify.base.discovery.source import (
     find_source_files,
     find_ts_and_tsx_files,
+    read_file_text,
 )
 from desloppify.base.output.terminal import colorize, print_table
 from desloppify.base.search.grep import grep_files
@@ -62,6 +64,62 @@ def _extract_module_specifiers(line: str) -> list[str]:
     return [match.group(1) for match in _IMPORT_SPEC_RE.finditer(line)]
 
 
+def _code_lines(content: str) -> list[str]:
+    """Return source lines with leading // and /* */ comments removed.
+
+    Only comments that start a line (after whitespace) are recognised. A
+    line can't start with a regex literal's `/*` or `//`, so this never
+    mistakes a regex like `/[/*]/` for a comment and drops later imports.
+    """
+    lines: list[str] = []
+    in_block = False
+    for line in content.splitlines():
+        rest = line
+        if in_block:
+            end = rest.find("*/")
+            if end == -1:
+                continue
+            rest = rest[end + 2 :]
+            in_block = False
+        while True:
+            stripped = rest.lstrip()
+            if stripped.startswith("//"):
+                rest = ""
+                break
+            if not stripped.startswith("/*"):
+                break
+            end = stripped.find("*/", 2)
+            if end == -1:
+                in_block = True
+                rest = ""
+                break
+            rest = stripped[end + 2 :]
+        if rest:
+            lines.append(rest)
+    return lines
+
+
+def _grep_imports_outside_comments(files: list[str]) -> list[tuple[str, str]]:
+    """Return (filepath, line) import hits, skipping commented-out lines.
+
+    Usage examples in JSDoc blocks (`* import { x } from "./y"`) are not real
+    edges and would otherwise create phantom import cycles.
+    """
+    project_root = get_project_root()
+    hits: list[tuple[str, str]] = []
+    for filepath in files:
+        abs_path = (
+            filepath if os.path.isabs(filepath) else str(project_root / filepath)
+        )
+        content = read_file_text(abs_path)
+        if content is None:
+            continue
+        for line in _code_lines(content):
+            if _IMPORT_HINT_RE.search(line):
+                hits.append((filepath, line))
+    return hits
+
+
 def build_dep_graph(
     path: Path,
     roslyn_cmd: str | None = None,
@@ -84,9 +142,9 @@ def build_dep_graph(
         return root, _load_tsconfig_paths(root)
 
     ts_files = find_ts_and_tsx_files(path)
-    hits = grep_files(r"""(?:\bfrom\s+['"]|\bimport\s+['"])""", ts_files)
+    hits = _grep_imports_outside_comments(ts_files)
 
-    for filepath, _lineno, content in hits:
+    for filepath, content in hits:
         source_resolved = resolve_path(filepath)
         tsconfig_root, tsconfig_paths = config_for_directory(Path(source_resolved).parent)
         graph[source_resolved]  # ensure entry exists
@@ -106,7 +164,7 @@ def build_dep_graph(
 
     fw_files = find_source_files(path, list(_framework_extensions()))
     if fw_files:
-        fw_hits = grep_files(r"""(?:\bfrom\s+['"]|\bimport\s+['"])""", fw_files)
+        fw_hits = grep_files(_IMPORT_HINT_RE.pattern, fw_files)
         for filepath, _lineno, content in fw_hits:
             source_resolved = resolve_path(filepath)
             tsconfig_root, tsconfig_paths = config_for_directory(Path(source_resolved).parent)
