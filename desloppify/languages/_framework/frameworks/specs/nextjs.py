@@ -561,13 +561,14 @@ NEXTJS_SPEC = FrameworkSpec(
     tools=(
         ToolIntegration(
             id="next_lint",
-            label="next lint",
+            label="Next.js lint",
             cmd="npx --no-install next lint --format json",
             cmd_resolver=_next_lint_command,
             fmt="next_lint",
             tier=2,
             slow=True,
             confidence="high",
+            cmd_resolver=_next_lint_command,
         ),
     ),
 )

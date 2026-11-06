@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from desloppify.base.output.terminal import log as _log
-from desloppify.languages._framework.base.types import DetectorPhase, LangRuntimeContract
+from desloppify.languages._framework.base.types import (
+    DetectorPhase,
+    LangRuntimeContract,
+)
 from desloppify.languages._framework.generic_support.core import make_tool_phase
 from desloppify.state_io import Issue
 
