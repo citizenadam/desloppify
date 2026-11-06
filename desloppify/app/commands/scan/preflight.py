@@ -29,14 +29,15 @@ from desloppify.engine.planning.queue_policy import build_execution_queue
 _logger = logging.getLogger(__name__)
 
 
-def _only_run_scan_workflow_remaining(state: dict, plan: dict) -> bool:
+def _only_run_scan_workflow_remaining(state: dict, plan: dict, *, context=None) -> bool:
     result = build_execution_queue(
         state,
         options=QueueBuildOptions(
             status="open",
             count=None,
-            plan=plan,
+            plan=plan if context is None else None,
             include_skipped=False,
+            context=context,
         ),
     )
     items = result.get("items", [])
@@ -109,7 +110,8 @@ def scan_queue_preflight(args: object) -> None:
     # prioritisation work.
     try:
         state = state_mod.load_state(state_path(args))
-        breakdown = plan_aware_queue_breakdown(state, plan)
+        ctx = queue_context(state, config=load_config(), plan=plan)
+        breakdown = plan_aware_queue_breakdown(state, plan, context=ctx)
         plan_start_strict = get_plan_start_strict(plan)
         mode = score_display_mode(breakdown, plan_start_strict)
     except OSError:
@@ -122,7 +124,7 @@ def scan_queue_preflight(args: object) -> None:
         mode is ScoreDisplayMode.PHASE_TRANSITION
         and breakdown.queue_total == 1
         and breakdown.workflow == 1
-        and _only_run_scan_workflow_remaining(state, plan)
+        and _only_run_scan_workflow_remaining(state, plan, context=ctx)
     ):
         _log_preflight(plan, "allowed", "only workflow::run-scan remaining", 1)
         return
@@ -136,9 +138,7 @@ def scan_queue_preflight(args: object) -> None:
     # Even if live_planned_queue_empty is False (non-synthetic items in
     # queue_order), those items may be stale (not in current state).
     # If the snapshot agrees the queue is empty, allow the scan.
-    from desloppify.engine._work_queue.context import queue_context
     try:
-        ctx = queue_context(state, plan=plan)
         if len(ctx.snapshot.execution_items) == 0:
             _log_preflight(plan, "allowed", "snapshot execution queue empty", 0)
             return
