@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+pytest.importorskip("tree_sitter_language_pack")
+
 from desloppify.languages._framework.treesitter.analysis.extractors import _get_parser
 from desloppify.languages._framework.treesitter.analysis.unused_imports import (
     detect_unused_imports,

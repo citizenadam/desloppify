@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("tree_sitter_language_pack")
+
 from desloppify.languages._framework.treesitter import JS_SPEC
 from desloppify.languages._framework.treesitter.imports.graph import ts_build_dep_graph
 

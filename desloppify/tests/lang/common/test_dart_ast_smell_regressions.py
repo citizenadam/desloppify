@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("tree_sitter_language_pack")
+
 from desloppify.languages._framework.treesitter import TreeSitterLangSpec
 from desloppify.languages._framework.treesitter.analysis.smells import (
     detect_empty_catches,
