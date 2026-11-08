@@ -109,7 +109,9 @@ def test_merge_separates_global_notice_from_selected_assessment_coverage(
     coverage = payload["assessment_coverage"]
     assert missing == coverage["missing_selected_dimensions"] == missing_selected
     assert coverage["missing_dimensions"] == [
-        dim for dim in ["naming_quality", "logic_clarity"] if dim not in assessed
+        dim
+        for dim in ["naming_quality", "logic_clarity"]
+        if dim in selected and dim not in assessed
     ]
     assert "Coverage gap:" in capsys.readouterr().out
     assert payload["provenance"]["packet_sha256"] == hashlib.sha256(b"{}").hexdigest()

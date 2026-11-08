@@ -157,6 +157,17 @@ def _append_assessment_import_audit(
         return
     provenance = import_payload.get("provenance")
     provenance_dict = provenance if isinstance(provenance, dict) else {}
+    reconcile_provenance: dict = {}
+    if assessment_policy.mode in {"trusted_internal", "attested_external"}:
+        import_id = uuid4().hex
+        for dimension in imported_assessment_keys(import_payload):
+            payload = working_state.get("subjective_assessments", {}).get(dimension)
+            if isinstance(payload, dict):
+                payload["assessment_import_id"] = import_id
+        reconcile_provenance = {
+            "assessment_import_id": import_id,
+            "reconciled_scan_count": working_state.get("scan_count", 0),
+        }
     assessments = working_state.get("subjective_assessments", {})
     assessment_timestamps = {
         dimension: assessment["assessed_at"]

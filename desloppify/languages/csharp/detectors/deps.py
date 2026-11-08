@@ -345,12 +345,18 @@ def build_dep_graph(path: Path, roslyn_cmd: str | None = None) -> dict[str, dict
         if proj is not None:
             project_to_namespaces[proj].add(ns)
 
-    def _allowed_namespaces_for(source: str) -> set[str] | None:
-        """Namespaces a file may reference, limited to its project's references."""
+    def _allowed_projects_for(source: str) -> set[Path] | None:
+        """Projects a file may reference: its own plus its project references."""
         proj = file_to_project.get(source)
         if proj is None:
             return None
-        allowed_projects = {proj} | project_refs.get(proj, set())
+        return {proj} | project_refs.get(proj, set())
+
+    def _allowed_namespaces_for(source: str) -> set[str] | None:
+        """Namespaces a file may reference, limited to its project's references."""
+        allowed_projects = _allowed_projects_for(source)
+        if allowed_projects is None:
+            return None
         allowed: set[str] = set()
         for ap in allowed_projects:
             allowed.update(project_to_namespaces.get(ap, set()))
@@ -358,9 +364,15 @@ def build_dep_graph(path: Path, roslyn_cmd: str | None = None) -> dict[str, dict
 
     def _link_usings(source: str, usings: set[str]) -> None:
         """Add graph edges from one file to every file its usings resolve to."""
+        allowed_projects = _allowed_projects_for(source)
         allowed_namespaces = _allowed_namespaces_for(source)
-        for using_ns in usings:
-            for target in _expand_namespace_matches(using_ns, namespace_to_files):
+
+        # C# types in the current namespace need no using directive. Match
+        # declared type names against code identifiers so unused siblings stay
+        # unreferenced and unrelated projects sharing a namespace stay isolated.
+        namespace = file_to_namespace.get(source)
+        for identifier in file_to_identifiers.get(source, set()):
+            for target in namespace_symbols.get((namespace, identifier), set()):
                 if target == source:
                     continue
                 if (
@@ -389,7 +401,8 @@ def build_dep_graph(path: Path, roslyn_cmd: str | None = None) -> dict[str, dict
                 # dependency on every file in that namespace (nor evidence that
                 # tests exercise them). Keep only referenced type/extension names.
                 if not type_targets and not (
-                    file_to_reference_symbols[target] & file_to_identifiers[source]
+                    file_to_reference_symbols.get(target, set())
+                    & file_to_identifiers.get(source, set())
                 ):
                     continue
                 target_ns = file_to_namespace.get(target)

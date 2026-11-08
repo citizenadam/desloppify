@@ -108,7 +108,7 @@ def decide_triage_start(
     if state is None:
         return TriageStartDecision(action="inject", reason="no_state_available")
 
-    has_objective = has_objective_backlog(state, policy)
+    has_objective = _has_existing_repairs_before_triage(plan, state, policy)
     # Postflight objectives remain backlog until planning completes; blocking
     # triage on them would prevent the workflow needed to plan those objectives.
     refresh_state = plan.get("refresh_state")

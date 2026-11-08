@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -212,17 +214,12 @@ def _build_from_compile_commands(
         if Path(source).suffix.lower() in _TRANSLATION_UNIT_SUFFIXES:
             graph[source]["is_entry_point"] = True
         include_dirs = _extract_include_dirs(tokens, directory)
-        source_file = Path(source)
-        for include_spec, is_quoted in _read_include_specs(source):
-            resolved = _resolve_with_compile_commands(
-                include_spec,
-                is_quoted=is_quoted,
-                source_file=source_file,
-                scan_root=path,
-                include_dirs=include_dirs,
-                file_index=file_index,
-            )
-            if resolved is None or resolved == source:
+        pending = [source]
+        context = tuple(include_dirs)
+        while pending:
+            current = pending.pop()
+            key = (current, context)
+            if key in expanded:
                 continue
             expanded.add(key)
             if current not in include_specs:

@@ -56,8 +56,12 @@ def test_override_resolve_helpers_cover_synthetic_split_and_blocked_stages(
             "unused::src/a.py::X",
         ]
     )
-    assert synthetic == ["triage::reflect", "workflow::create-plan"]
-    assert remaining == ["strategy::owner-boundary-type-safety", "unused::src/a.py::X"]
+    assert synthetic == [
+        "triage::reflect",
+        "workflow::create-plan",
+        "strategy::owner-boundary-type-safety",
+    ]
+    assert remaining == ["unused::src/a.py::X"]
     assert resolve_helpers_mod.resolve_synthetic_ids(
         ["triage::reflect", "unused::src/a.py::X"]
     ) == (["triage::reflect"], ["unused::src/a.py::X"])

@@ -31,10 +31,15 @@ def select_queue_items(
             plan=plan,
             target_strict=threshold,
         )
-        return filter_snapshot_items(
+        items = filter_snapshot_items(
             items_for_visibility(snapshot=snapshot, visibility=visibility),
             opts,
         )
+        if opts.include_skipped:
+            items = _append_skipped_items(
+                state, items, plan=plan, scan_path=scan_path, opts=opts
+            )
+        return items
 
     items = build_issue_items(
         state,
@@ -51,8 +56,36 @@ def select_queue_items(
     return items
 
 
+def _append_skipped_items(
+    state: StateModel,
+    items: list[WorkQueueItem],
+    *,
+    plan: dict | None,
+    scan_path: str | None,
+    opts: QueueBuildOptions,
+) -> list[WorkQueueItem]:
+    """Add plan-skipped issues so finalization can re-append them on demand."""
+    skipped_ids = set((plan or {}).get("skipped", {}) or {})
+    if not skipped_ids:
+        return items
+    present = {item.get("id", "") for item in items}
+    missing = skipped_ids - present
+    if not missing:
+        return items
+    extra = build_issue_items(
+        state,
+        scan_path=scan_path,
+        status_filter="open",
+        scope=opts.scope,
+        chronic=False,
+        forced_ids=missing,
+    )
+    return [*items, *[item for item in extra if item.get("id", "") in missing]]
+
+
 def items_for_visibility(*, snapshot, visibility: str) -> list[WorkQueueItem]:
     """Select the snapshot partition for one queue surface."""
+
     if visibility == QueueVisibility.BACKLOG:
         source_items = snapshot.backlog_items or snapshot.execution_items
         return [

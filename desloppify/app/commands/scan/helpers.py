@@ -7,6 +7,7 @@ from pathlib import Path
 
 from desloppify import state as state_mod
 from desloppify.base.discovery.file_paths import count_lines, resolve_scan_file
+from desloppify.base.git_context import git_ignored_paths
 from desloppify.base.discovery.source import (
     DEFAULT_EXCLUSIONS,
     read_file_text,

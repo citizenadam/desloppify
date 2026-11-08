@@ -12,6 +12,7 @@ import sys
 from desloppify.app.commands.helpers.query import load_query_result
 from desloppify.base.exception_sets import CommandError
 from desloppify.base.output.terminal import colorize
+from desloppify.engine._plan.refresh_lifecycle import LIFECYCLE_PHASE_ASSESSMENT_POSTFLIGHT
 from desloppify.engine._work_queue.context import queue_context
 from desloppify.engine._work_queue.review_scope import (
     normalize_dimension_key as _normalize_dimension_key,
@@ -113,7 +114,7 @@ def _objective_and_subjective_backlog(
     state: StateModel,
     *,
     blocking_dims: list[str],
-    config: dict | None,
+    config: dict | None = None,
 ) -> tuple[int, int]:
     ctx = queue_context(state, config=config)
     if not blocking_dims:
@@ -123,7 +124,15 @@ def _objective_and_subjective_backlog(
         ctx.snapshot.all_postflight_review_items,
         blocking_dims=blocking_dims,
     ))
-    return ctx.snapshot.objective_execution_count, subjective_total
+    # Assessment postflight parks objective work deliberately, so it must not
+    # block a reassessment rerun; elsewhere all in-scope objective work gates it.
+    objective_total = (
+        0
+        if getattr(ctx.snapshot, "phase", None) == LIFECYCLE_PHASE_ASSESSMENT_POSTFLIGHT
+        else ctx.snapshot.objective_execution_count
+        + getattr(ctx.snapshot, "objective_backlog_count", 0)
+    )
+    return objective_total, subjective_total
 
 
 def _print_backlog_blocked_message(

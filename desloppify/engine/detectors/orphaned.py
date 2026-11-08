@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from desloppify.base.discovery.file_paths import count_lines, rel
+from desloppify.base.discovery.file_paths import count_lines, rel, resolve_path
 
 from ._orphaned.nuxt import (
     NuxtUsageIndex,
@@ -281,10 +281,12 @@ def detect_orphaned_files(
     dynamic_import_finder = resolved_options.dynamic_import_finder
     alias_resolver = resolved_options.alias_resolver
 
-    # Framework convention detection
+    # Framework convention detection. Resolve Next.js ownership per file so
+    # monorepos and subtree scans only honour the owning package's config.
     detect_frameworks = resolved_options.detect_frameworks
-    is_nextjs = detect_frameworks and _detect_nextjs_project(path)
+    nextjs_roots: dict[Path, Path | None] = {}
     is_nuxt = detect_frameworks and detect_nuxt_project(path)
+    is_statamic = detect_frameworks and _detect_statamic_project(path)
     nuxt_usage: NuxtUsageIndex | None = None
     scan_root = path.resolve()
 
@@ -305,6 +307,9 @@ def detect_orphaned_files(
             continue
 
         r = rel(filepath)
+
+        if is_statamic and _is_statamic_convention_entry(r):
+            continue
 
         if any(p in r for p in all_entry_patterns):
             continue

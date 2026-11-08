@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import subprocess  # nosec B404
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -63,7 +63,9 @@ def _record_tool_failure_coverage(
 
 
 def _drop_excluded_entries(
-    entries: list[dict[str, Any]], run_path: Path
+    entries: list[dict[str, Any]],
+    run_path: Path,
+    extra_exclusions: Iterable[str] = (),
 ) -> list[dict[str, Any]]:
     """Drop tool findings for paths the scan excludes.
 
@@ -73,7 +75,11 @@ def _drop_excluded_entries(
     project with a large vendor tree, can outnumber real ones several times
     over — so they are filtered on the way in rather than scored.
     """
-    exclusions = tuple(get_exclusions()) + tuple(DEFAULT_EXCLUSIONS)
+    exclusions = (
+        tuple(get_exclusions())
+        + tuple(DEFAULT_EXCLUSIONS)
+        + tuple(extra_exclusions)
+    )
     if not exclusions:
         return entries
 
@@ -120,7 +126,11 @@ def make_tool_phase(
                 result=run_result,
             )
             return [], {}
-        entries = _drop_excluded_entries(list(run_result.entries), run_path)
+        entries = _drop_excluded_entries(
+            list(run_result.entries),
+            run_path,
+            getattr(lang, "exclusions", ()) or (),
+        )
         meta = run_result.meta if isinstance(run_result.meta, dict) else {}
         meta_potential = meta.get("potential")
         potential = meta_potential if isinstance(meta_potential, int) else 0

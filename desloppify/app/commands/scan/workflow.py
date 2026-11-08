@@ -483,7 +483,7 @@ def merge_scan_results(
             project_root=str(get_project_root()),
             zone_map=runtime.lang.zone_map if runtime.lang else None,
             semantic_corrections=(
-                runtime.lang.semantic_corrections
+                getattr(runtime.lang, "semantic_corrections", None)
                 if runtime.lang is not None and scan_path_rel == "."
                 else None
             ),
@@ -495,6 +495,13 @@ def merge_scan_results(
     )
     runtime.scan_diff = diff
     runtime.prev_dim_scores = prev_dim_scores
+    # Persist the raw merge before plan reconciliation so reopens and
+    # resolution evidence survive even if reconciliation rewrites the state.
+    save_state(
+        runtime.state,
+        runtime.state_path,
+        subjective_integrity_target=target_score,
+    )
     _reconcile_plan_post_scan(runtime)
     _clear_needs_rescan_flag(runtime.config)
 

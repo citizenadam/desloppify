@@ -75,12 +75,27 @@ def _is_plan_only_synthetic_id(pattern: str) -> bool:
     return is_synthetic_id(pattern) and not pattern.startswith(STRATEGY_PREFIX)
 
 
-def split_synthetic_patterns(patterns: list[str]) -> tuple[list[str], list[str]]:
-    """Partition plan-only synthetic IDs from state-backed work-item patterns."""
-    synthetic = [pattern for pattern in patterns if _is_plan_only_synthetic_id(pattern)]
-    remaining = [
-        pattern for pattern in patterns if not _is_plan_only_synthetic_id(pattern)
+def split_synthetic_patterns(
+    patterns: list[str], *, state: dict | None = None
+) -> tuple[list[str], list[str]]:
+    """Keep persisted strategy work on the ordinary attested resolution path."""
+    work_items = (state.get("work_items") or state.get("issues", {})) if state else {}
+    persisted_strategy = {
+        pattern
+        for pattern in patterns
+        if state is not None
+        and pattern.startswith(STRATEGY_PREFIX)
+        and any(
+            issue_id.startswith(pattern) or fnmatch.fnmatch(issue_id, pattern)
+            for issue_id in work_items
+        )
+    }
+    synthetic = [
+        pattern
+        for pattern in patterns
+        if is_synthetic_id(pattern) and pattern not in persisted_strategy
     ]
+    remaining = [pattern for pattern in patterns if pattern not in synthetic]
     return synthetic, remaining
 
 

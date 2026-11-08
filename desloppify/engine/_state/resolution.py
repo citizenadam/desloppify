@@ -128,7 +128,15 @@ def resolve_issues(
     reattribute_auto_resolved: bool = False,
 ) -> list[str]:
     """Set issue status for matches and return affected issue IDs."""
-    status_filter = "all" if status == "open" else "open"
+    status_filter = (
+        "all"
+        if status == "open"
+        or (
+            status == "fixed"
+            and bool(attestation)
+        )
+        else "open"
+    )
     matches = match_issues(state, pattern, status_filter=status_filter)
     return _resolve_matches(state, matches, status, note, attestation)
 
@@ -192,22 +200,11 @@ def _resolve_matches(
             "detail": copy.deepcopy(original.get("detail", {})),
         }
 
-    status_filter = (
-        "all"
-        if status == "open"
-        or (
-            status == "fixed"
-            and bool(attestation)
-        )
-        else "open"
-    )
-    for issue in match_issues(state, pattern, status_filter=status_filter):
+    for issue in matches:
         previous_status = str(issue.get("status", "open")).strip() or "open"
         if status == "fixed" and previous_status not in {"open", "auto_resolved"}:
             continue
         if status == "open" and previous_status == "open":
-            continue
-        if status == "fixed" and previous_status not in {"open", "auto_resolved"}:
             continue
 
         extra_updates: dict[str, object] = {}

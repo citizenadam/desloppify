@@ -107,7 +107,7 @@ def _resolve_generic_extractors(
 
     has_treesitter = True
     extract_fn = make_ts_extractor(ts_spec, file_finder)
-    if ts_spec.import_query and ts_spec.resolve_import:
+    if dep_graph_fn is empty_dep_graph and ts_spec.import_query and ts_spec.resolve_import:
         # Pull the framework source-extension list from the FrameworkSpec
         # registry — adding a new framework (e.g. Qwik, Solid, Marko) is one
         # spec file with ``source_extensions=(...)`` and zero edits here.

@@ -108,6 +108,34 @@ def _run_cppcheck_batch(scan_root: Path, files: list[str], include_args: str):
     )
 
 
+def _is_unused_function(entry: dict) -> bool:
+    fields = entry["message"].split(": ", 2)
+    return len(fields) == 3 and fields[1] == "unusedFunction"
+
+
+def _run_cppcheck_whole_program(scan_root: Path, files: list[str]):
+    # A compilation database keeps each file's dialect, including C++ headers,
+    # while collecting calls across every batch and per-file retry.
+    try:
+        with tempfile.TemporaryDirectory(prefix="desloppify-cppcheck-") as temporary:
+            database = Path(temporary) / "compile_commands.json"
+            database.write_text(json.dumps([
+                {"directory": str(scan_root.resolve()), "file": str((scan_root / file).resolve()),
+                 "arguments": ["cc", "-x", "c" if Path(file).suffix.lower() == ".c" else "c++",
+                               "-c", str((scan_root / file).resolve())]}
+                for file in files
+            ]), encoding="utf-8")
+            return run_tool_result(
+                "cppcheck --template='{file}:{line}: {severity}: {id}: {message}' "
+                f"--enable=unusedFunction,information --quiet --project={shlex.quote(str(database))}",
+                scan_root, PARSERS["gnu"],
+            )
+    except OSError as error:
+        return ToolRunResult(
+            entries=[], status="error", error_kind="tool_io_error", message=str(error)
+        )
+
+
 def _is_header_unused_diagnostic(entry: dict) -> bool:
     filepath = str(entry.get("file", ""))
     message = str(entry.get("message", ""))

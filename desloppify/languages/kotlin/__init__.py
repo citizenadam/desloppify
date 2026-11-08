@@ -4,6 +4,7 @@ from desloppify.engine.policy.zones import Zone, ZoneRule
 from desloppify.languages._framework.generic_support.core import generic_lang, generic_zone_rules
 from desloppify.languages._framework.treesitter import KOTLIN_SPEC
 from desloppify.languages.kotlin._zones import KOTLIN_ZONE_RULES
+from desloppify.languages.kotlin.deps import build_kotlin_dep_graph
 from desloppify.languages.kotlin.fixers import make_ktlint_fixer
 
 _config = generic_lang(
@@ -23,6 +24,9 @@ _config = generic_lang(
     depth="shallow",
     detect_markers=["build.gradle.kts", "build.gradle"],
     treesitter_spec=KOTLIN_SPEC,
+    dep_graph_builder=build_kotlin_dep_graph,
+    # Gradle build scripts are run by Gradle, never imported.
+    entry_patterns=[".gradle.kts"],
     zone_rules=KOTLIN_ZONE_RULES,
 )
 

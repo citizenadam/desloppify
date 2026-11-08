@@ -137,7 +137,10 @@ class LangRun(LangRunStateAccessors):
 
     def __getattr__(self, name: str):
         if name in _FORWARDED_CONFIG_ATTRS:
-            return getattr(self.config, name)
+            config = self.__dict__.get("config")
+            if config is None:
+                return None
+            return getattr(config, name)
         raise AttributeError(
             f"{self.__class__.__name__!s} has no attribute {name!r}; "
             "access runtime state via explicit LangRun properties"

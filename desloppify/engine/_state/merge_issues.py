@@ -164,6 +164,26 @@ def apply_semantic_corrections(
     return corrected_issue_ids
 
 
+_RESOLUTION_KIND_BY_NOTE = (
+    ("source file no longer exists", "file_deleted"),
+    ("zone policy now skips", "zone_policy"),
+)
+
+
+def _backfill_resolution_kinds(existing: dict) -> None:
+    """Stamp `resolution_kind` on auto-resolutions recorded before the field."""
+    for previous in existing.values():
+        if previous.get("status") != "auto_resolved":
+            continue
+        if previous.get("resolution_kind") is not None:
+            continue
+        note = previous.get("note") or ""
+        for fragment, kind in _RESOLUTION_KIND_BY_NOTE:
+            if fragment in note:
+                previous["resolution_kind"] = kind
+                break
+
+
 def verify_disappeared(
     existing: dict,
     current_ids: set[str],
@@ -214,12 +234,13 @@ def verify_disappeared(
         if previous.get("detector", "unknown") in suspect_detectors:
             continue
 
-        # Review imports only run review/concern detectors and cannot
-        # corroborate manually resolved mechanical findings.
-        if (
-            previous_status != "open"
-            and confirmed_detectors is not None
-            and previous.get("detector", "unknown") not in confirmed_detectors
+        # Review imports and partial scans do not corroborate dispositions for
+        # detectors that did not run. Suspect detection alone is insufficient:
+        # it counts open issues, and a detector may have only resolved issues.
+        # Apply this before scope verification, which also records scan evidence.
+        if previous_status != "open" and (
+            confirmed_detectors is None
+            or previous.get("detector", "unknown") not in confirmed_detectors
         ):
             continue
 

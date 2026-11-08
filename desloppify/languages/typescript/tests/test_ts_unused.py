@@ -5,6 +5,7 @@ and failure handling without requiring Node.
 """
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -139,6 +140,7 @@ class TestCategorizeUnused:
 class TestDenoFallback:
     def test_run_tsc_unused_check_uses_fixed_command(self, tmp_path, monkeypatch):
         class _Result:
+            returncode = 0
             stdout = ""
             stderr = ""
 
@@ -157,7 +159,7 @@ class TestDenoFallback:
         result = ts_unused_mod._run_tsc_unused_check(tmp_path, tsconfig)
 
         assert result.stdout == ""
-        assert recorded["args"][:-1] == [
+        assert recorded["args"][:7] == [
             npx_path,
             "tsc",
             "--project",
@@ -235,6 +237,7 @@ class TestDenoFallback:
         _write(tmp_path, "tsconfig.json", "{}")
 
         class _Result:
+            returncode = 1
             stdout = "src/app.ts(1,7): error TS6133: 'x' is declared but its value is never read.\n"
             stderr = ""
 
@@ -266,6 +269,7 @@ class TestDenoFallback:
         recorded: dict[str, object] = {}
 
         class _Result:
+            returncode = 0
             stdout = ""
             stderr = ""
 
@@ -304,6 +308,7 @@ class TestDenoFallback:
         _write(tmp_path, "tsconfig.json", "{}")
 
         class _Result:
+            returncode = 1
             stdout = "src/app.ts(1,7): error TS6133: 'x' is declared but its value is never read.\n"
             stderr = ""
 
@@ -335,6 +340,7 @@ class TestDenoFallback:
         recorded: dict[str, object] = {}
 
         class _Result:
+            returncode = 0
             stdout = ""
             stderr = ""
 

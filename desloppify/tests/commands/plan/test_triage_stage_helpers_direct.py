@@ -78,6 +78,12 @@ def test_unenriched_clusters_flags_missing_requirements() -> None:
                 "description": "ok",
                 "action_steps": ["cluster-level step"],
             },
+            "small_needs_more_steps": {
+                "auto": False,
+                "issue_ids": ["review::s1", "review::s2", "review::s3"],
+                "description": "ok",
+                "action_steps": ["step one", "step two"],
+            },
         }
     }
 

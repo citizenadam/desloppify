@@ -6,7 +6,10 @@ import ast
 import logging
 from pathlib import Path
 
-from .deps_resolution import resolve_absolute_import, try_resolve_path
+from desloppify.base.discovery.paths import get_project_root
+from desloppify.base.discovery.source import find_py_files
+
+from .deps_resolution import resolve_python_import, try_resolve_path
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +245,7 @@ def find_python_dynamic_imports(path: Path, extensions: list[str]) -> set[str]:
             spec = _string_literal(node.args[0])
             if spec is None:
                 continue
-            resolved = resolve_absolute_import(spec, path)
+            resolved = resolve_python_import(spec, str(py_file), path)
             if resolved:
                 targets.add(resolved)
             else:

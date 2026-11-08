@@ -40,6 +40,123 @@ _logger = logging.getLogger(__name__)
 _RESOLVED_STATUSES = frozenset({"fixed", "auto_resolved", "wontfix", "false_positive"})
 
 
+def _step_ref_sets(
+    state: dict | None, resolved_ids: list[str]
+) -> tuple[set[str] | None, set[str] | None]:
+    """Return resolved/open IDs plus review summary hashes used by action steps.
+
+    Without state there is no hash index; callers fall back to suffix matching.
+    """
+    if not isinstance(state, dict):
+        return None, None
+    resolved_refs = set(resolved_ids)
+    open_refs: set[str] = set()
+    for issue_id, issue in (state.get("work_items") or {}).items():
+        if not isinstance(issue, dict):
+            continue
+        refs = {issue_id}
+        detail = issue.get("detail")
+        if isinstance(detail, dict) and isinstance(detail.get("summary_hash"), str):
+            refs.add(detail["summary_hash"])
+        if issue_id in resolved_refs:
+            resolved_refs.update(refs)
+        if issue.get("status") == "open" and issue_id not in resolved_ids:
+            open_refs.update(refs)
+    return resolved_refs, open_refs
+
+
+def _cluster_history_members(plan: dict) -> dict[str, list[str]]:
+    """Return each cluster's historical members from the execution log."""
+    members: dict[str, list[str]] = {}
+    removed: dict[str, set[str]] = {}
+    for entry in plan.get("execution_log", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("cluster_name")
+        action = entry.get("action")
+        issue_ids = [
+            issue_id
+            for issue_id in entry.get("issue_ids", []) or []
+            if isinstance(issue_id, str)
+        ]
+        if not isinstance(name, str) or not issue_ids:
+            continue
+        if action in {"cluster_create", "cluster_add", "cluster_update"}:
+            bucket = members.setdefault(name, [])
+            for issue_id in issue_ids:
+                if issue_id not in bucket:
+                    bucket.append(issue_id)
+            removed.get(name, set()).difference_update(issue_ids)
+        elif action == "cluster_remove" and entry.get("actor") == "user":
+            removed.setdefault(name, set()).update(issue_ids)
+    for name, gone in removed.items():
+        members[name] = [
+            issue_id for issue_id in members.get(name, []) if issue_id not in gone
+        ]
+    return members
+
+
+def _restore_resolved_cluster_members(
+    plan: dict, resolved_ids: list[str], cluster_names: list[str] | None = None
+) -> list[str]:
+    """Re-add resolved members so normalization keeps the packet's history."""
+    history = _cluster_history_members(plan)
+    targeted = (
+        list(cluster_names)
+        if cluster_names is not None
+        else [
+            name
+            for name, members in history.items()
+            if any(issue_id in members for issue_id in resolved_ids)
+        ]
+    )
+    restored: dict[str, list[str]] = {}
+    for name in targeted:
+        cluster = (plan.get("clusters") or {}).get(name)
+        if not isinstance(cluster, dict):
+            continue
+        existing = list(cluster.get("issue_ids") or [])
+        candidates = [
+            issue_id
+            for issue_id in [*(history.get(name, [])), *resolved_ids]
+            if issue_id not in existing
+        ]
+        missing: list[str] = []
+        for issue_id in candidates:
+            if issue_id in missing:
+                continue
+            missing.append(issue_id)
+        if not missing:
+            continue
+        cluster["issue_ids"] = existing + missing
+        restored[name] = missing
+    for name, issue_ids in restored.items():
+        append_log_entry(
+            plan,
+            "cluster_add",
+            issue_ids=issue_ids,
+            cluster_name=name,
+            actor="system",
+        )
+    return list(restored)
+
+
+def _move_resolved_cluster_members_to_end(
+    plan: dict, resolved_ids: list[str]
+) -> None:
+    """Keep resolved packets' members as history, after the remaining work."""
+    resolved = set(resolved_ids)
+    for cluster in (plan.get("clusters") or {}).values():
+        if not isinstance(cluster, dict):
+            continue
+        ids = cluster.get("issue_ids") or []
+        if not any(issue_id in resolved for issue_id in ids):
+            continue
+        cluster["issue_ids"] = [
+            issue_id for issue_id in ids if issue_id not in resolved
+        ] + [issue_id for issue_id in ids if issue_id in resolved]
+
+
 class ClusterContext(NamedTuple):
     cluster_name: str | None
     cluster_completed: bool
@@ -50,6 +167,7 @@ def _affected_cluster_names(plan: dict, resolved_ids: list[str]) -> list[str]:
     """Return unique cluster names referenced by the resolved ids."""
     overrides = plan.get("overrides") or {}
     clusters = plan.get("clusters") or {}
+    history = _cluster_history_members(plan)
     seen: set[str] = set()
     cluster_names: list[str] = []
     for resolved_id in resolved_ids:
@@ -62,6 +180,15 @@ def _affected_cluster_names(plan: dict, resolved_ids: list[str]) -> list[str]:
             and cluster.get("execution_status") != EXECUTION_STATUS_DONE
             and resolved_id in (cluster.get("issue_ids") or [])
         ]
+        if not candidates:
+            # A purged member only survives in the packet's logged history.
+            candidates = [
+                name
+                for name, members in history.items()
+                if resolved_id in members
+                and not (clusters.get(name) or {}).get("execution_status")
+                == EXECUTION_STATUS_DONE
+            ]
         for candidate in candidates:
             if candidate in seen:
                 continue
@@ -133,6 +260,8 @@ def _cluster_has_open_member(
         return False
     return any(
         issues.get(issue_id, {}).get("status") == "open"
+        if isinstance(issues.get(issue_id), dict)
+        else True
         for issue_id in cluster.get("issue_ids") or []
     )
 
@@ -155,10 +284,17 @@ def update_living_plan_after_resolve(
         if not has_living_plan(plan_path):
             return None, ctx
         plan = load_plan(plan_path)
+        if state is not None:
+            _restore_resolved_cluster_members(plan, all_resolved)
         ctx = capture_cluster_context(plan, all_resolved, state=state)
         completed_clusters = _completed_cluster_names(plan, all_resolved, state=state)
         phase_before = current_lifecycle_phase(plan)
         purged = purge_ids(plan, all_resolved)
+        if state is not None:
+            # Resolved members stay as the packet's history; the appended
+            # cluster_add entry keeps normalization from pruning them again.
+            _restore_resolved_cluster_members(plan, all_resolved)
+            _move_resolved_cluster_members_to_end(plan, all_resolved)
         append_log_entry(
             plan,
             "resolve",
@@ -168,7 +304,10 @@ def update_living_plan_after_resolve(
             detail={"status": args.status, "attestation": attestation},
         )
         if args.status == "fixed":
-            step_messages = auto_complete_steps(plan)
+            resolved_refs, open_refs = _step_ref_sets(state, all_resolved)
+            step_messages = auto_complete_steps(
+                plan, resolved_refs=resolved_refs, open_refs=open_refs
+            )
             for msg in step_messages:
                 print(colorize(msg, "green"))
         if completed_clusters:

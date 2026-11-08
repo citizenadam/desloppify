@@ -124,7 +124,6 @@ def detect_unused_imports(
         return _detect_unused_imports_ecmascript(file_list, spec, parser, language)
 
     query = _make_query(language, spec.import_query)
-    implicit_uses = _compile_implicit_uses(getattr(spec, "implicit_import_uses", ()))
     entries: list[dict] = []
     sourced_symbol_cache: dict[str, frozenset[str]] = {}
 

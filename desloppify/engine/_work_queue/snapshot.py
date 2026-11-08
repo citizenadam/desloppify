@@ -186,9 +186,17 @@ def _merge_execution_candidates(
 ) -> tuple[list[WorkQueueItem], list[WorkQueueItem]]:
     """Merge queue-owned execution items with objective defaults."""
     explicit_queue_ids = _live_planned_queue_ids(plan)
+    triaged_ids = set(
+        ((plan or {}).get("epic_triage_meta") or {}).get("triaged_ids", []) or []
+    )
     review_board_active = bool(executable_review_ids) and bool(
         ((plan or {}).get("epic_triage_meta") or {}).get("last_completed_at")
     )
+
+    def _allowed_while_review_active(item_id: str) -> bool:
+        """Triage owns execution: only the board and triaged objectives run."""
+        return item_id in executable_review_ids or item_id in triaged_ids
+
     queued_non_review_items = [
         item
         for item in all_issue_items
@@ -196,18 +204,18 @@ def _merge_execution_candidates(
         and item.get("id", "") not in assessment_request_ids
         and not (
             review_board_active
-            and item.get("id", "") not in executable_review_ids
+            and not _allowed_while_review_active(item.get("id", ""))
         )
     ]
 
-    # A completed triage handoff owns execution: queued objective work stays
-    # in backlog until the board drains, so mechanical defects don't leak into
-    # the review queue.
+    # A completed triage handoff owns execution: queued objective work that
+    # triage has not classified stays in backlog so mechanical defects don't
+    # leak into the review queue.
     if review_board_active:
         explicit_objective_items = [
             item
             for item in explicit_objective_items
-            if item.get("id", "") in executable_review_ids
+            if _allowed_while_review_active(item.get("id", ""))
         ]
 
     execution_candidates: list[WorkQueueItem] = []
@@ -349,6 +357,7 @@ def _phase_for_snapshot(
         postflight_review_items=postflight_review_items,
         postflight_workflow_items=postflight_workflow_items,
         triage_items=triage_items,
+        has_reassessment_blockers=bool(reassessment_blockers),
         has_promoted_execution=has_promoted_execution_candidate(
             plan,
             execution_ids,
@@ -368,6 +377,7 @@ def _derive_display_phase(
     postflight_review_items: list[WorkQueueItem],
     postflight_workflow_items: list[WorkQueueItem],
     triage_items: list[WorkQueueItem],
+    has_reassessment_blockers: bool,
     has_promoted_execution: bool,
 ) -> str:
     """Derive the display phase from queue item partitions.
@@ -384,6 +394,7 @@ def _derive_display_phase(
         has_execution=bool(anchored_execution_items or explicit_queue_items),
         fresh_boundary=fresh_boundary,
         prefer_scan=prefer_scan and bool(scan_items),
+        has_reassessment_blockers=has_reassessment_blockers,
         has_promoted_execution=has_promoted_execution,
     )
 
@@ -540,10 +551,32 @@ def _build_item_partitions(
         )
     ] + list(assessment_request_items_list)
     postflight_review_items = list(executable_review_items)
+    triage_in_queue = bool(
+        isinstance(effective_plan, dict)
+        and build_triage_snapshot(effective_plan, state).has_triage_in_queue
+    )
+    if not triage_in_queue:
+        postflight_review_items += [
+            item
+            for item in objective_items
+            if isinstance(item.get("detail"), dict)
+            and str(item["detail"].get("dimension", "")).strip()
+        ]
 
     scan_items, postflight_workflow_items, triage_items = _workflow_partitions(
         effective_plan,
         state,
+    )
+
+    # Reassessment blockers only exist once triage has actually completed its
+    # handoff for this packet; a partially triaged plan must keep assessing.
+    triage_meta = (effective_plan or {}).get("epic_triage_meta") or {}
+    reassessment_blockers = (
+        review_blockers(
+            postflight_review_items, blocking_dims=scored_dimensions(state),
+        )
+        if triage_meta.get("last_completed_at")
+        else []
     )
 
     return _Partitions(
@@ -554,9 +587,7 @@ def _build_item_partitions(
         subjective_postflight_items=subjective_postflight_items,
         postflight_assessment_items=postflight_assessment_items,
         postflight_review_items=postflight_review_items,
-        reassessment_blockers=review_blockers(
-            postflight_review_items, blocking_dims=scored_dimensions(state),
-        ),
+        reassessment_blockers=reassessment_blockers,
         scan_items=scan_items,
         postflight_workflow_items=postflight_workflow_items,
         triage_items=triage_items,

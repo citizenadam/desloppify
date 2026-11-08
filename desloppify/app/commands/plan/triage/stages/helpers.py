@@ -71,6 +71,13 @@ def active_triage_issue_scope(
     meta = plan.get("epic_triage_meta", {})
     if not isinstance(meta, dict) or "active_triage_issue_ids" not in meta:
         return None
+    raw = meta.get("active_triage_issue_ids")
+    # Malformed legacy values mean "no frozen scope", not an empty one. An
+    # explicit empty list is a real workflow-only triage scope.
+    if not isinstance(raw, list) or any(
+        not isinstance(item, str) or not item.strip() for item in raw
+    ):
+        return None
     frozen = active_triage_issue_ids(plan, state)
     if state is None:
         return frozen
@@ -90,12 +97,12 @@ def scoped_manual_clusters_with_issues(
     raw_scope = (plan.get("epic_triage_meta", {}) or {}).get("active_triage_issue_ids")
     if not scope and isinstance(raw_scope, list) and not raw_scope:
         # A workflow-only triage still validates its current manual work,
-        # without retroactively enriching completed historical clusters.
+        # without retroactively enriching completed historical clusters or
+        # re-opening review packets frozen out of this cycle.
         return [
             name
             for name in names
-            if infer_cluster_execution_status(clusters.get(name, {}))
-            != EXECUTION_STATUS_DONE
+            if clusters.get(name, {}).get("execution_status") == "active"
         ]
     return [
         name for name in names if set(cluster_issue_ids(clusters.get(name, {}))) & scope
@@ -138,10 +145,12 @@ def unenriched_clusters(
     clusters = plan.get("clusters", {})
     for name in scoped_manual_clusters_with_issues(plan, state):
         cluster = clusters.get(name, {})
+        issue_ids = cluster_issue_ids(cluster)
         missing: list[str] = []
         if not cluster.get("description"):
             missing.append("description")
         steps = cluster.get("action_steps") or []
+        issue_count = len(issue_ids)
         if not steps:
             missing.append("action_steps")
         elif issue_count < 5 and len(steps) < issue_count:

@@ -18,6 +18,7 @@ from desloppify.engine._plan.sync.triage import compute_new_issue_ids
 from desloppify.engine._work_queue.core import (
     QueueBuildOptions,
 )
+from desloppify.engine._work_queue.context import queue_context
 from desloppify.engine._work_queue.plan_order import (
     collapse_clusters,
     filter_cluster_focus,
@@ -180,10 +181,13 @@ def _build_queue_items(
     plan: dict,
     include_skipped: bool,
     effective_cluster: str | None,
-    subjective_threshold: float,
+    subjective_threshold: float | None = None,
+    config: dict | None = None,
 ) -> tuple[list[dict], dict]:
     """Build queue items with focus/collapse view transforms applied."""
     context = queue_context(state, config=config, plan=plan)
+    if subjective_threshold is None:
+        subjective_threshold = context.target_strict
     queue = build_execution_queue(
         state,
         options=QueueBuildOptions(
@@ -255,6 +259,7 @@ def cmd_plan_queue(args: argparse.Namespace) -> None:
         include_skipped=include_skipped,
         effective_cluster=effective_cluster,
         subjective_threshold=target_strict_score_from_config(runtime.config),
+        config=runtime.config,
     )
 
     sort_by = getattr(args, "sort", "priority")

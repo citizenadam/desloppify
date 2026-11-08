@@ -527,16 +527,23 @@ NEXTJS_SCANNERS: tuple[ScannerRule, ...] = (
 
 def _next_lint_command(scan_root: Path) -> str | None:
     """Use ESLint directly when the installed Next.js no longer provides lint."""
-    try:
-        package = json.loads((scan_root / "node_modules/next/package.json").read_text())
-    except (OSError, UnicodeError, json.JSONDecodeError):
+    for parent in (scan_root, *scan_root.parents):
+        package_path = parent / "node_modules/next/package.json"
+        if not package_path.is_file():
+            continue
+        try:
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(package, dict):
+            return None
+        version = package.get("version")
+        match = re.match(r"^v?(\d+)\.", version) if isinstance(version, str) else None
+        if match is None:
+            return None
+        if int(match.group(1)) >= 16:
+            return 'npx --no-install eslint "**/*.{js,jsx,ts,tsx}" --format json'
         return None
-    if not isinstance(package, dict):
-        return None
-    version = package.get("version")
-    match = re.match(r"^v?(\d+)\.", version) if isinstance(version, str) else None
-    if match and int(match.group(1)) >= 16:
-        return "npx --no-install eslint . --format json"
     return None
 
 
@@ -563,7 +570,6 @@ NEXTJS_SPEC = FrameworkSpec(
             id="next_lint",
             label="Next.js lint",
             cmd="npx --no-install next lint --format json",
-            cmd_resolver=_next_lint_command,
             fmt="next_lint",
             tier=2,
             slow=True,

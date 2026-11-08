@@ -159,7 +159,9 @@ def _prepare_packet_scope(
     )
     scan_path = str(getattr(args, "path", ".") or ".")
     packet_dimensions = normalize_dimension_list(packet.get("dimensions", []))
-    scored_dimensions = scored_dimensions_for_lang(lang.name)
+    scored_dimensions = scored_dimensions_for_lang(
+        getattr(lang, "name", None) or ""
+    )
     suggested_prepare_cmd = f"desloppify review --prepare --path {scan_path}"
     raw_dim_prompts = packet.get("dimension_prompts")
     batches = explode_to_single_dimension(

@@ -247,6 +247,8 @@ JS_SPEC = TreeSitterLangSpec(
     import_query="""
         (import_statement
             source: (string (string_fragment) @path)) @import
+        (export_statement
+            source: (string (string_fragment) @path)) @import
         (call_expression
             function: (identifier) @_require_fn
             arguments: (arguments . (string (string_fragment) @path))

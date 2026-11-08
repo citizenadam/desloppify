@@ -24,12 +24,20 @@ def _fixed_resolved_ids(plan: dict) -> set[str]:
     return fixed_ids
 
 
-def auto_complete_steps(plan: dict) -> list[str]:
+def auto_complete_steps(
+    plan: dict,
+    *,
+    resolved_refs: set[str] | None = None,
+    open_refs: set[str] | None = None,
+) -> list[str]:
     """Mark steps done when every issue ref has a fixed resolve record.
 
     A skipped issue is deliberately absent from ``queue_order``, but its work
     has not been completed.  A disposition, queue change, or workflow event is
     therefore not enough to complete a referenced action step.
+
+    ``resolved_refs``/``open_refs`` let callers match review summary hashes as
+    well as issue IDs.
 
     Returns list of human-readable messages for completed steps.
     """
@@ -43,11 +51,21 @@ def auto_complete_steps(plan: dict) -> list[str]:
             refs = step.get("issue_refs", [])
             if not refs:
                 continue
-            # Match by suffix: ref "abc123" matches "review::path::abc123".
-            all_fixed = all(
-                any(issue_id.endswith(ref) or issue_id == ref for issue_id in fixed_ids)
-                for ref in refs
-            )
+            if resolved_refs is not None and not any(
+                ref in resolved_refs for ref in refs
+            ):
+                continue
+            if open_refs is not None:
+                all_fixed = all(ref not in open_refs for ref in refs)
+            else:
+                # Match by suffix: ref "abc123" matches "review::path::abc123".
+                all_fixed = all(
+                    any(
+                        issue_id.endswith(ref) or issue_id == ref
+                        for issue_id in fixed_ids
+                    )
+                    for ref in refs
+                )
             if all_fixed:
                 step["done"] = True
                 messages.append(

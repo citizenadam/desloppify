@@ -50,8 +50,8 @@ def test_python_security_prerequisites_and_detection_flow(monkeypatch, tmp_path)
 
     captured_files: list[str] = []
 
-    def _fake_bandit(detected_files, _zone_map, *, exclude_dirs, skip_tests=None):
-        captured_files.extend(detected_files)
+    def _fake_bandit(scan_root, _zone_map, *, exclude_dirs, skip_tests=None, files=None):
+        captured_files.extend(files or [])
         return SimpleNamespace(
             entries=[{"file": "a.py", "line": 1}],
             files_scanned=3,
@@ -61,7 +61,7 @@ def test_python_security_prerequisites_and_detection_flow(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         py_security_mod,
-        "detect_with_bandit_files",
+        "detect_with_bandit",
         _fake_bandit,
     )
 

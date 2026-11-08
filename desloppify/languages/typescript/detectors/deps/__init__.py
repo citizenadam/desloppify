@@ -53,6 +53,7 @@ def _framework_extensions() -> tuple[str, ...]:
     return framework_source_extensions(ecosystem="node")
 
 
+_IMPORT_HINT_RE = re.compile(r"""(?:\bfrom\s+['"]|\bimport\s+['"])""")
 _IMPORT_SPEC_RE = re.compile(
     r"""(?:from\s+|import\s+)(?:type\s+)?['"]([^'"]+)['"]"""
 )

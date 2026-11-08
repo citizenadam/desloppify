@@ -254,7 +254,11 @@ def test_next_lint_uses_installed_version(tmp_path, monkeypatch, version, eslint
     monkeypatch.setattr(phases, "make_tool_phase", fake_phase)
     phase = phases._framework_tool_phase(NEXTJS_SPEC, NEXTJS_SPEC.tools[0])
     assert phase.run(tmp_path, _FakeLang()) == ([], {"next_lint": 1})
-    expected = "npx --no-install eslint . --format json" if eslint else "npx --no-install next lint --format json"
+    expected = (
+        'npx --no-install eslint "**/*.{js,jsx,ts,tsx}" --format json'
+        if eslint
+        else "npx --no-install next lint --format json"
+    )
     assert calls == [(expected, tmp_path.resolve())]
 
 

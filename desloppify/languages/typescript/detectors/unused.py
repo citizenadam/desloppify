@@ -16,7 +16,7 @@ from collections import defaultdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from desloppify.base.discovery.file_paths import rel, resolve_path
+from desloppify.base.discovery.file_paths import rel, resolve_path, safe_write_text
 from desloppify.base.discovery.paths import get_project_root
 from desloppify.base.discovery.source import find_ts_and_tsx_files
 from desloppify.base.exception_sets import CommandError
@@ -44,52 +44,48 @@ _detect_unused_fallback = detect_unused_fallback
 _should_use_deno_fallback = should_use_deno_fallback
 
 
+def _tsc_prefix(project_root: Path) -> list[str]:
+    """Resolve the compiler invocation: `npx tsc`, a local binary, or `tsc`."""
+    npx_path = shutil.which("npx")
+    if npx_path:
+        return [npx_path, "tsc"]
+    local_tsc = next(
+        (
+            compiler
+            for directory in (project_root, *project_root.parents)
+            if (compiler := directory / "node_modules" / ".bin" / "tsc").is_file()
+        ),
+        None,
+    )
+    if local_tsc is not None:
+        return [str(local_tsc)]
+    tsc_path = shutil.which("tsc")
+    if tsc_path:
+        return [tsc_path]
+    raise OSError("TypeScript compiler not found (npx/tsc)")
+
+
 def _run_tsc_unused_check(
     project_root: Path,
     tsconfig_path: Path,
-    *,
-    show_config: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     """Run the unused-symbol check for one project root.
 
     Prefers `npx tsc`, then the nearest ancestor's `node_modules/.bin/tsc`, then `tsc`.
     """
-    npx_path = shutil.which("npx")
-    if npx_path:
-        cmd = [npx_path, "tsc"]
-    else:
-        local_tsc = next(
-            (
-                compiler
-                for directory in (project_root, *project_root.parents)
-                if (compiler := directory / "node_modules" / ".bin" / "tsc").is_file()
-            ),
-            None,
-        )
-        if local_tsc is not None:
-            cmd = [str(local_tsc)]
-        else:
-            tsc_path = shutil.which("tsc")
-            if tsc_path:
-                cmd = [tsc_path]
-            else:
-                raise OSError("TypeScript compiler not found (npx/tsc)")
+    cmd = _tsc_prefix(project_root)
 
     # Even --noEmit can write .tsbuildinfo in incremental/composite projects.
     # Keep this observation from changing the project's compiler cache.
     with TemporaryDirectory(prefix="desloppify-tsc-") as scratch:
-        options = (
-            ["--showConfig"]
-            if show_config
-            else [
-                "--noEmit",
-                "--noUnusedLocals",
-                "--noUnusedParameters",
-                "--incremental",
-                "--tsBuildInfoFile",
-                str(Path(scratch) / "unused.tsbuildinfo"),
-            ]
-        )
+        options = [
+            "--noEmit",
+            "--noUnusedLocals",
+            "--noUnusedParameters",
+            "--incremental",
+            "--tsBuildInfoFile",
+            str(Path(scratch) / "unused.tsbuildinfo"),
+        ]
         return _proc_runtime.run(  # nosec B603
             [*cmd, "--project", str(tsconfig_path), "--pretty", "false", *options],
             capture_output=True,
@@ -97,6 +93,26 @@ def _run_tsc_unused_check(
             cwd=project_root,
             timeout=120,
         )
+
+
+def _show_config(project_root: Path, tsconfig_path: Path) -> str | None:
+    """Ask tsc to resolve JSONC/extends for one config, best effort."""
+    try:
+        shown = _proc_runtime.run(  # nosec B603
+            [
+                *_tsc_prefix(project_root),
+                "--project",
+                str(tsconfig_path),
+                "--showConfig",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=project_root,
+            timeout=120,
+        )
+    except (_proc_runtime.SubprocessError, OSError):
+        return None
+    return getattr(shown, "stdout", "") or ""
 
 
 def _find_tsconfigs(ts_files: list[str]) -> list[Path]:
@@ -133,28 +149,40 @@ def _find_tsconfigs(ts_files: list[str]) -> list[Path]:
 
 
 def _project_diagnostics(config: Path) -> tuple[list[str], list[Path]]:
-    """Let tsc resolve JSONC/extends and validate configuration before using diagnostics."""
-    try:
-        shown = _run_tsc_unused_check(config.parent, config, show_config=True)
-        if shown.returncode != 0:
-            raise CommandError(
-                f"Cannot read TypeScript project {config}:\n{shown.stdout}{shown.stderr}".strip()
-            )
+    """Run the unused-symbol check against a config that extends *config*."""
+    shown = _show_config(config.parent, config)
+    references: list[Path] = []
+    if shown:
         try:
-            effective = json.loads(shown.stdout)
-        except json.JSONDecodeError as exc:
+            effective = json.loads(shown)
+        except json.JSONDecodeError:
+            effective = {}
+        for reference in effective.get("references", []) or []:
+            path = reference.get("path") if isinstance(reference, dict) else None
+            if not isinstance(path, str):
+                continue
+            target = (config.parent / path).resolve()
+            references.append(
+                target / "tsconfig.json" if target.is_dir() else target
+            )
+    tmp_path = config.parent / "tsconfig.desloppify.json"
+    payload = {
+        "extends": f"./{config.name}",
+        "compilerOptions": {
+            "noUnusedLocals": True,
+            "noUnusedParameters": True,
+        },
+    }
+    try:
+        safe_write_text(tmp_path, json.dumps(payload, indent=2))
+        try:
+            result = _run_tsc_unused_check(config.parent, tmp_path)
+        except (_proc_runtime.SubprocessError, OSError) as exc:
             raise CommandError(
-                f"TypeScript returned an invalid configuration for {config}"
+                f"Cannot check unused declarations in TypeScript project {config}: {exc}"
             ) from exc
-        references = []
-        for reference in effective.get("references", []):
-            target = (config.parent / reference["path"]).resolve()
-            references.append(target / "tsconfig.json" if target.is_dir() else target)
-        result = _run_tsc_unused_check(config.parent, config)
-    except (_proc_runtime.SubprocessError, OSError) as exc:
-        raise CommandError(
-            f"Cannot check unused declarations in TypeScript project {config}: {exc}"
-        ) from exc
+    finally:
+        tmp_path.unlink(missing_ok=True)
     lines = result.stdout.splitlines() + result.stderr.splitlines()
     # Source errors can coexist with valid unused diagnostics. Configuration
     # errors can also be located; tsc only checks some option combinations during
@@ -173,8 +201,6 @@ def _project_diagnostics(config: Path) -> tuple[list[str], list[Path]]:
     if (
         config_error
         or any(line.startswith("error TS") for line in lines)
-        or result.returncode not in {0, 1, 2}
-        or (result.returncode != 0 and not located)
     ):
         raise CommandError(
             f"TypeScript unused check failed for {config}:\n{result.stdout}{result.stderr}".strip()
@@ -208,25 +234,12 @@ def detect_unused(path: Path, category: str = "all") -> tuple[list[dict], int]:
     if _should_use_deno_fallback(path, ts_files):
         return _detect_unused_fallback(path, category)
 
-    project_root = get_project_root()
-    base_tsconfig = _find_base_tsconfig(path, project_root)
-    tmp_tsconfig = {
-        "extends": f"./{base_tsconfig.name}",
-        "compilerOptions": {
-            "noUnusedLocals": True,
-            "noUnusedParameters": True,
-        },
-    }
-    tmp_path = base_tsconfig.parent / "tsconfig.desloppify.json"
-    try:
-        safe_write_text(tmp_path, json.dumps(tmp_tsconfig, indent=2))
-        try:
-            result = _run_tsc_unused_check(project_root, tmp_path)
-        except (_proc_runtime.SubprocessError, OSError) as exc:
-            logger.debug("Falling back to source-based unused detection: %s", exc)
-            return _detect_unused_fallback(path, category)
-    finally:
-        tmp_path.unlink(missing_ok=True)
+    configs = _find_tsconfigs(ts_files)
+    if not configs:
+        logger.warning(
+            "No TypeScript project configuration found; using source-based unused detection"
+        )
+        return _detect_unused_fallback(path, category)
 
     scan_files = {Path(resolve_path(filepath)) for filepath in ts_files}
     entries: dict[tuple[str, int, int, str], dict] = {}

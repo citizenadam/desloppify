@@ -122,7 +122,7 @@ def _args():
 
 def _context(monkeypatch, state, plan):
     ctx = queue_context(state, plan=plan)
-    monkeypatch.setattr(preflight, "queue_context", lambda _state: ctx)
+    monkeypatch.setattr(preflight, "queue_context", lambda _state, **_kwargs: ctx)
     return ctx
 
 

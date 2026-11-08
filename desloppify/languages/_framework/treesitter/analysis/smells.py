@@ -225,6 +225,12 @@ def _check_sequence_for_unreachable(block_node, filepath: str, entries: list[dic
             saw_terminator = False
 
         terminal = _terminator_type(child)
+        # C# yield return suspends an iterator and resumes at the next statement;
+        # only yield break terminates it. Other languages' yields also resume.
+        if terminal is None and child.type == "yield_statement" and any(
+            token.type == "break" for token in child.children
+        ):
+            terminal = child.type
         if terminal is not None:
             saw_terminator = True
             terminator_type = terminal

@@ -220,6 +220,7 @@ def _find_source_files_cached(
             d
             for d in dirnames
             if not _is_excluded_dir(d, rel_dir + "/" + d, all_exclusions)
+            and not os.path.exists(os.path.join(dirpath, d, ".git"))
         )
         for fname in filenames:
             if any(fname.endswith(ext) for ext in ext_set):

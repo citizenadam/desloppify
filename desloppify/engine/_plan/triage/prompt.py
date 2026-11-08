@@ -246,7 +246,17 @@ def collect_triage_input(plan: PlanModel, state: StateModel) -> TriageInput:
     snapshot = build_triage_snapshot(plan, state)
 
     triaged_ids = set(meta.get("triaged_ids", [])) - protected_ids
-    current_review_ids = set(open_review.keys())
+    live_open_review_ids = set(open_review.keys())
+    frozen_ids = meta.get("active_triage_issue_ids")
+    if isinstance(frozen_ids, list) and frozen_ids:
+        # A frozen run only collects the review cycle it was started for.
+        scope = {issue_id for issue_id in frozen_ids if isinstance(issue_id, str)}
+        open_review = {
+            issue_id: issue
+            for issue_id, issue in open_review.items()
+            if issue_id in scope
+        }
+    current_review_ids = live_open_review_ids
     new_since = set(snapshot.new_since_triage_ids)
     resolved_since = triaged_ids - current_review_ids
     previously_dismissed = [

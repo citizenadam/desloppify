@@ -14,6 +14,7 @@ from desloppify.app.commands.helpers.queue_progress import (
 from desloppify.app.commands.helpers.state import state_path
 from desloppify.app.commands.resolve.plan_load import warn_plan_load_degraded_once
 from desloppify.base.exception_sets import CommandError, ScanQueueBlockedError
+from desloppify.base.config import load_config
 from desloppify.base.output.terminal import colorize
 from desloppify.engine._plan.constants import WORKFLOW_RUN_SCAN_ID
 from desloppify.engine._plan.refresh_lifecycle import current_lifecycle_phase
@@ -23,6 +24,7 @@ from desloppify.engine._state.progression import (
     build_scan_preflight_event,
 )
 from desloppify.engine._work_queue.context import resolve_plan_load_status
+from desloppify.engine._work_queue.context import queue_context
 from desloppify.engine._work_queue.core import QueueBuildOptions
 from desloppify.engine.planning.queue_policy import build_execution_queue
 

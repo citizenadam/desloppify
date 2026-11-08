@@ -145,10 +145,18 @@ def merge_and_write_results(
     review_scope["imported_dimensions"] = merged_imported_dims
     missing_scored_dimensions = print_import_dimension_coverage_notice(
         assessed_dims=merged_assessment_dims,
-        scored_dims=packet_dimensions,
+        scored_dims=scored_dimensions,
         scan_path=scan_path,
         colorize_fn=colorize_fn,
     )
+    # The payload reports the gap inside the selected packet; the printed notice
+    # above remains the global scored-dimension gap.
+    selected_set = set(packet_dimensions)
+    scoped_missing_dimensions = [
+        dimension
+        for dimension in missing_scored_dimensions
+        if dimension in selected_set
+    ]
     selected_assessment_dimensions = normalize_dimension_list(packet_dimensions)
     imported_assessment_dimensions = set(merged_assessment_dims)
     missing_selected_dimensions = [
@@ -162,7 +170,7 @@ def merge_and_write_results(
         "imported_dimensions": merged_assessment_dims,
         # The global gap remains useful review telemetry, but does not make a
         # complete explicit subset review untrustworthy.
-        "missing_dimensions": missing_scored_dimensions,
+        "missing_dimensions": scoped_missing_dimensions,
         "missing_selected_dimensions": missing_selected_dimensions,
     }
     merged_path = run_dir / "holistic_issues_merged.json"

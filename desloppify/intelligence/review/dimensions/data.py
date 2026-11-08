@@ -162,6 +162,9 @@ def _load_payload_for_lang(
     base_payload = _load_json_payload(filename)
     context = filename
 
+    if not lang_name:
+        return base_payload, context
+
     lang_override_path = _lang_payload_path(lang_name, _override_filename(filename))
     if lang_override_path.is_file():
         override_payload = _load_json_payload_from_path(lang_override_path)

@@ -464,7 +464,7 @@ def _build_workspace_package_index_cached(
         manifest = Path(resolve_path(manifest_path))
         if manifest.name != "Cargo.toml":
             continue
-        manifest_dir = current.resolve()
+        manifest_dir = manifest.parent.resolve()
         for name in {
             read_package_name(manifest_dir),
             read_library_crate_name(manifest_dir),

@@ -271,7 +271,21 @@ def collapse_clusters(items: list[WorkQueueItem], plan: dict) -> list[WorkQueueI
         for name, cluster in clusters.items()
         if not cluster.get("auto") and name in cluster_members
     ]
-    manual_names = sorted(manual_candidates, key=_manual_cluster_sort_key)
+    # Only clusters with an explicit priority or queue position are hoisted
+    # ahead of the rest; historical clusters keep their original position.
+    hoisted_names = sorted(
+        (
+            name
+            for name in manual_candidates
+            if isinstance(clusters[name].get("priority"), int)
+            or any(
+                member["id"] in queue_positions
+                for member in cluster_members[name]
+            )
+        ),
+        key=_manual_cluster_sort_key,
+    )
+    hoisted = set(hoisted_names)
 
     # Walk in order: replace first auto-cluster member with meta-item,
     # skip subsequent members.  Manual cluster members are always skipped
@@ -280,7 +294,7 @@ def collapse_clusters(items: list[WorkQueueItem], plan: dict) -> list[WorkQueueI
     rest: list[WorkQueueItem] = []
     for item in items:
         cname = fid_to_cluster.get(item.get("id", ""))
-        if cname and cname in manual_names:
+        if cname and cname in hoisted:
             continue
         if cname and cname in meta_items:
             if cname not in seen_clusters:
@@ -294,7 +308,7 @@ def collapse_clusters(items: list[WorkQueueItem], plan: dict) -> list[WorkQueueI
     # Singleton manual clusters stay as their original issue item so callers
     # still receive the normal per-finding execution detail.
     manual_result: list[WorkQueueItem] = []
-    for name in manual_names:
+    for name in hoisted_names:
         if name in meta_items:
             manual_result.append(meta_items[name])
         else:

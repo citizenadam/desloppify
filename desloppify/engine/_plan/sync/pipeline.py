@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from desloppify.engine._state.schema import StateModel
 from desloppify.engine._plan.auto_cluster import auto_cluster_issues
 from desloppify.engine._plan.constants import (
     PRE_REVIEW_WORKFLOW_IDS,
@@ -38,6 +39,10 @@ from desloppify.engine._plan.sync.workflow import (
 from desloppify.engine._plan.triage.protection import clear_protected_triage_artifacts
 from desloppify.engine._plan.triage.snapshot import build_triage_snapshot
 from desloppify.engine._state.issue_semantics import is_assessment_request
+from desloppify.engine._state.issue_semantics import is_triage_finding
+from desloppify.engine._work_queue.ranking import build_issue_items
+from desloppify.engine._work_queue.review_scope import review_blockers, scored_dimensions
+from desloppify.engine._work_queue.synthetic import build_subjective_items
 from desloppify.state_scoring import score_snapshot
 
 _SCAN_PHASE_WORKFLOW_IDS = {
@@ -137,6 +142,29 @@ def _resolve_reconcile_display_phase(
     subjective_ids = [item for item in order if item.startswith("subjective::")]
     unscored_ids = set(getattr(policy, "unscored_ids", ()) or ())
     has_initial_review = any(item in unscored_ids for item in subjective_ids)
+    initial_review_ids: set[str] = set()
+    if not has_initial_review or not fresh_boundary:
+        issues_for_review = state.get("work_items") or state.get("issues", {})
+        try:
+            candidates = build_subjective_items(
+                state,
+                issues_for_review,
+                threshold=95.0,
+                plan=plan,
+            )
+        except (KeyError, TypeError, ValueError):
+            candidates = []
+        initial_review_ids = {
+            str(item.get("id", ""))
+            for item in candidates
+            if item.get("initial_review")
+        }
+        has_initial_review = has_initial_review or any(
+            item in initial_review_ids for item in subjective_ids
+        )
+        # The first scan seeds plan_start_scores after reconciliation. Keep
+        # initial reviews actionable when that same scan queued them.
+        fresh_boundary = fresh_boundary or bool(initial_review_ids & set(order))
     has_postflight_assessment = bool(subjective_ids) and not has_initial_review
     prefer_scan = any(item in _SCAN_PHASE_WORKFLOW_IDS for item in order)
     has_workflow = bool(result.workflow_injected_ids) or any(
@@ -188,6 +216,27 @@ def _resolve_reconcile_display_phase(
         has_triage = False
         has_review_postflight = False
 
+    ready_blockers = []
+    triage_meta = plan.get("epic_triage_meta") or {}
+    if (
+        triage_meta.get("last_completed_at")
+        and triage_snapshot.triage_has_run
+        and not triage_snapshot.has_triage_in_queue
+        and not triage_snapshot.is_triage_stale
+    ):
+        items = build_issue_items(
+            state,
+            scan_path=state.get("scan_path"),
+            status_filter="open",
+            scope=None,
+            chronic=False,
+            forced_ids=live_planned_queue_ids(plan),
+        )
+        ready_blockers = review_blockers(
+            (item for item in items if is_triage_finding(item)),
+            blocking_dims=scored_dimensions(state),
+        )
+
     return derive_display_phase(
         has_initial_review=has_initial_review,
         has_postflight_assessment=has_postflight_assessment,
@@ -197,6 +246,7 @@ def _resolve_reconcile_display_phase(
         has_execution=has_real_work,
         fresh_boundary=fresh_boundary,
         prefer_scan=prefer_scan,
+        has_reassessment_blockers=bool(ready_blockers),
         has_promoted_execution=has_promoted_execution_candidate(
             plan,
             promoted_execution_ids,

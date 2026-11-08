@@ -82,17 +82,17 @@ def build_execution_queue(
 ) -> WorkQueueResult:
     """Build the execution queue that follows the living plan when present."""
     options = options or QueueBuildOptions()
-    ctx = options.context or queue_context(
-        state,
-        plan=_queue_plan_from_options(options),
-        target_strict=_subjective_threshold(state),
-    )
     # An explicitly supplied option threshold wins; otherwise honor the
-    # configured target carried by the context.
+    # configured target.
     resolved_threshold = (
         options.subjective_threshold
         if options.subjective_threshold != 100.0
-        else ctx.target_strict
+        else _subjective_threshold(state)
+    )
+    ctx = options.context or queue_context(
+        state,
+        plan=_queue_plan_from_options(options),
+        target_strict=resolved_threshold,
     )
     return _build_work_queue_with_visibility(
         state,
@@ -108,10 +108,15 @@ def build_backlog_queue(
 ) -> WorkQueueResult:
     """Build the broader backlog, excluding work already tracked in the plan."""
     options = options or QueueBuildOptions()
+    resolved_threshold = (
+        options.subjective_threshold
+        if options.subjective_threshold != 100.0
+        else _subjective_threshold(state)
+    )
     ctx = options.context or queue_context(
         state,
         plan=_queue_plan_from_options(options),
-        target_strict=_subjective_threshold(state),
+        target_strict=resolved_threshold,
     )
     resolved_threshold = (
         options.subjective_threshold

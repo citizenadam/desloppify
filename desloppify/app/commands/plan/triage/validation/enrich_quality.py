@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Literal
 
 from ..review_coverage import cluster_issue_ids
+from desloppify.engine._plan.cluster_semantics import (
+    EXECUTION_STATUS_DONE,
+    infer_cluster_execution_status,
+)
 from .enrich_checks import (
     _steps_missing_issue_refs,
     _steps_referencing_skipped_issues,
@@ -90,7 +94,16 @@ def _scoped_plan(plan: dict, triage_issue_ids: set[str] | None) -> dict:
     if triage_issue_ids is None:
         return plan
     if not triage_issue_ids:
-        return {**plan, "clusters": {}}
+        # A workflow-only cycle still validates its explicitly active work
+        # without retroactively rewriting completed or historical history.
+        return {
+            **plan,
+            "clusters": {
+                name: cluster
+                for name, cluster in plan.get("clusters", {}).items()
+                if cluster.get("execution_status") == "active"
+            },
+        }
     active = _active_cluster_names(plan, triage_issue_ids)
     return {
         **plan,
@@ -115,6 +128,14 @@ def evaluate_enrich_quality(
     triage_issue_ids: set[str] | None = None,
 ) -> EnrichQualityReport:
     """Evaluate executor-readiness checks for enrich-level stage data."""
+    if triage_issue_ids is None:
+        raw_scope = (plan.get("epic_triage_meta") or {}).get(
+            "active_triage_issue_ids"
+        )
+        if isinstance(raw_scope, list) and all(
+            isinstance(issue_id, str) and issue_id.strip() for issue_id in raw_scope
+        ):
+            triage_issue_ids = set(raw_scope)
     plan = _scoped_plan(plan, triage_issue_ids)
 
     failures: list[EnrichQualityIssue] = []

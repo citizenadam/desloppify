@@ -265,6 +265,26 @@ def build_subjective_items(
         assessed_at = str(payload.get("assessed_at", "")).strip()
         if assessed_at == "":
             return False
+        if refresh_reason == "review_issue_fixed":
+            # A later fix invalidates the assessment independently of its import.
+            # Suppress only when trusted review demonstrably covers that fix.
+            try:
+                assessed_time, imported_time, stale_time = (
+                    datetime.fromisoformat(timestamp)
+                    for timestamp in (
+                        assessed_at,
+                        legacy_latest_audit_ts,
+                        str(payload.get("stale_since", "")).strip(),
+                    )
+                )
+            except (TypeError, ValueError):
+                return False
+            if any(
+                timestamp.utcoffset() is None
+                for timestamp in (assessed_time, imported_time, stale_time)
+            ):
+                return False
+            return stale_time < assessed_time and assessed_time >= imported_time
         return assessed_at in covered_revisions.get(dimension_key, set()) or (
             bool(legacy_latest_audit_ts) and assessed_at >= legacy_latest_audit_ts
         )

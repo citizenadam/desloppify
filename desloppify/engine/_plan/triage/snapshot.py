@@ -79,8 +79,23 @@ def _explicit_active_triage_issue_ids(plan: PlanModel) -> set[str]:
 def live_active_triage_issue_ids(plan: PlanModel, state: StateModel | None = None) -> set[str]:
     """Return frozen triage IDs that are still open review issues in state."""
     frozen_ids = active_triage_issue_ids(plan, state)
-    if state is None or not frozen_ids:
+    if state is None:
         return frozen_ids
+    if not frozen_ids:
+        # An empty freeze taken before any scan completed cannot vouch for
+        # review findings that appear afterwards; once a scan has completed it
+        # stays empty. Findings already dispositioned stay out of scope.
+        if state.get("last_scan"):
+            return set()
+        covered: set[str] = {
+            issue_id
+            for issue_id in (plan.get("skipped") or {})
+            if isinstance(issue_id, str)
+        }
+        for cluster in (plan.get("clusters") or {}).values():
+            if isinstance(cluster, dict):
+                covered.update(_cluster_issue_ids(cluster))
+        return set(triage_open_review_ids(plan, state)) - covered
     return frozen_ids & triage_open_review_ids(plan, state)
 
 

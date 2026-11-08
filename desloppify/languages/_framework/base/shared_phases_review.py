@@ -607,7 +607,7 @@ def phase_test_coverage(
     # ``potential`` is the LOC-weighted scoring denominator, not a file count.
     # Label it accordingly so large projects do not appear to contain thousands
     # more production files than discovery actually found.
-    _log_phase_summary("test coverage", results, potential, "weighted checks")
+    _log_phase_summary("test coverage", results, potential, "weighted coverage units")
 
     return results, {"test_coverage": potential}
 

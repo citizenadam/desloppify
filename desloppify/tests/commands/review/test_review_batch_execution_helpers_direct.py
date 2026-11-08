@@ -205,7 +205,7 @@ def test_merge_and_finalize_helpers(tmp_path: Path, monkeypatch) -> None:
     assert merged_path.exists()
     assert missing == []
     merged_payload = json.loads(merged_path.read_text())
-    assert merged_payload["assessment_coverage"]["missing_dimensions"] == ["missing_dim"]
+    assert merged_payload["assessment_coverage"]["missing_dimensions"] == []
     assert merged_payload["assessment_coverage"]["missing_selected_dimensions"] == []
     assert merged_payload["review_scope"]["reviewed_files_count"] == 2
     assert merged_payload["provenance"]["trusted"] is True
@@ -214,7 +214,7 @@ def test_merge_and_finalize_helpers(tmp_path: Path, monkeypatch) -> None:
         "scored_dimensions": ["design_coherence", "type_safety"],
         "selected_dimensions": ["design_coherence"],
         "imported_dimensions": ["design_coherence"],
-        "missing_dimensions": ["missing_dim"],
+        "missing_dimensions": [],
         "missing_selected_dimensions": [],
     }
 
@@ -268,8 +268,7 @@ def test_merge_reports_missing_selected_assessments_for_trusted_import(
     assert missing == ["design_coherence"]
     merged_payload = json.loads(merged_path.read_text())
     assert merged_payload["assessment_coverage"]["missing_dimensions"] == [
-        "design_coherence",
-        "type_safety",
+        "design_coherence"
     ]
     assert merged_payload["assessment_coverage"]["missing_selected_dimensions"] == [
         "design_coherence"

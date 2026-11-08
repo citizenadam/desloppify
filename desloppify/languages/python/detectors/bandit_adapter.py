@@ -251,6 +251,7 @@ def _run_bandit(
     exclude_dirs: list[str] | None = None,
     skip_tests: list[str] | None = None,
     require_target_metrics: bool = False,
+    recursive: bool = False,
 ) -> BanditScanResult:
     """Run Bandit for one non-empty set of explicit targets."""
     cmd = [
@@ -265,7 +266,10 @@ def _run_bandit(
         cmd.extend(["--exclude", ",".join(exclude_dirs)])
     if skip_tests:
         cmd.extend(["--skip", ",".join(skip_tests)])
-    cmd.extend(str(target) for target in targets)
+    if recursive:
+        cmd.extend(["-r", str(targets[0])])
+    else:
+        cmd.extend(str(target) for target in targets)
 
     try:
         result = subprocess.run(
@@ -489,8 +493,9 @@ def detect_with_bandit(
     timeout: int = 120,
     exclude_dirs: list[str] | None = None,
     skip_tests: list[str] | None = None,
+    files: list[str] | None = None,
 ) -> BanditScanResult:
-    """Run Bandit recursively on *path* for legacy direct callers.
+    """Run Bandit on *path*, or on explicitly discovered *files*.
 
     Parameters
     ----------
@@ -501,11 +506,73 @@ def detect_with_bandit(
     skip_tests:
         Bandit test IDs to suppress via ``--skip`` (e.g. ``["B101", "B601"]``).
         Allows users to disable entire rule families from ``config.json``.
+    files:
+        Already-discovered source files, relative to the project root or
+        absolute. When supplied, scan these targets without recursive
+        traversal; Bandit's own exclusions filter files but do not prune
+        directory walks.
     """
+    if files is not None:
+        return _detect_discovered_targets(
+            files,
+            zone_map,
+            timeout=timeout,
+            exclude_dirs=exclude_dirs,
+            skip_tests=skip_tests,
+        )
     return _run_bandit(
         [path.resolve()],
         zone_map,
         timeout=timeout,
         exclude_dirs=exclude_dirs,
         skip_tests=skip_tests,
+        recursive=True,
     )
+
+
+def _detect_discovered_targets(
+    files: Iterable[str | Path],
+    zone_map: FileZoneMap | None,
+    *,
+    timeout: int,
+    exclude_dirs: list[str] | None,
+    skip_tests: list[str] | None,
+) -> BanditScanResult:
+    """Scan explicitly discovered files in byte-bounded batches."""
+    project_root = get_project_root()
+    targets = sorted({str((project_root / filename).resolve()) for filename in files})
+    if not targets:
+        return BanditScanResult([], 0, BanditRunStatus("ok"))
+
+    batches: list[list[str]] = []
+    batch: list[str] = []
+    size = 0
+    for filename in targets:
+        length = len(filename.encode()) + 1
+        if batch and size + length > _TARGET_BYTES_PER_BATCH:
+            batches.append(batch)
+            batch, size = [], 0
+        batch.append(filename)
+        size += length
+    if batch:
+        batches.append(batch)
+
+    entries: list[dict] = []
+    files_scanned = 0
+    deadline = time.monotonic() + timeout
+    for batch in batches:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return BanditScanResult(entries, files_scanned, BanditRunStatus("timeout"))
+        result = _run_bandit(
+            [Path(target) for target in batch],
+            zone_map,
+            timeout=remaining,
+            exclude_dirs=exclude_dirs,
+            skip_tests=skip_tests,
+        )
+        entries.extend(result.entries)
+        files_scanned += result.files_scanned
+        if result.status.state != "ok":
+            return BanditScanResult(entries, files_scanned, result.status)
+    return BanditScanResult(entries, files_scanned, BanditRunStatus("ok"))
