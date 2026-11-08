@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Pushes made with the repo GITHUB_TOKEN (the upstream auto-merge) do not
+  # trigger push/pull_request workflows, so that workflow dispatches this one.
+  workflow_dispatch:
 
 permissions:
   contents: read
