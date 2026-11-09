@@ -167,6 +167,7 @@ def test_ci_plan_required_checks_match_ci_workflow() -> None:
             "typecheck",
             "arch-contracts",
             "ci-contracts",
+            "blob-scan",
             "tests-core",
             "tests-full",
             "package-smoke",

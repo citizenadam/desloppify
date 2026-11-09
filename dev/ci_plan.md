@@ -25,6 +25,8 @@ Required jobs:
   - `make arch`
 - `ci-contracts`:
   - `make ci-contracts` (workflow/docs/policy contract tests)
+- `blob-scan`:
+  - `make scan-blobs` (binary, archive and encoded-payload gate)
 - `tests-core`:
   - `make tests PYTEST_XML=pytest-core.xml`
 - `tests-full`:
@@ -52,6 +54,44 @@ Notes:
 - Integration workflow is intentionally separate from required PR checks.
 - Failures should be triaged, but do not block normal merges by policy.
 
+### 4) CodeQL (`.github/workflows/codeql.yml`)
+
+Triggers:
+- `push` to `main`
+- `pull_request`
+- Weekly schedule (Mondays at 05:31 UTC)
+
+Job:
+- `analyze`
+  - Python, `security-extended` query pack, build-mode `none`
+  - Results go to the repository's code scanning dashboard
+
+Notes:
+- Free for public repositories, using GitHub's own `github/codeql-action`.
+- Not a required status check: it reports, it does not gate merges.
+
+## Binary and blob policy
+
+Upstream pull requests are auto-merged without review, so a committed binary
+would reach PyPI on the following push. `.github/scripts/scan_blobs.py`
+(stdlib only) enforces:
+
+- executables, shared libraries, archives, bytecode and serialised objects
+  (`.pkl`, `.joblib`, …) are rejected unconditionally;
+- any other non-text file must match a sha256 registered in
+  `.github/blob-allowlist.txt`;
+- text files above 1 MiB, and quoted base64/hex literals above 512 characters,
+  are rejected;
+- symbolic links, NUL bytes and invalid UTF-8 are rejected.
+
+The gate runs in three places: `blob-scan` in CI, on every staged file through
+`.githooks/pre-commit`, and inside the upstream auto-merge on each pull-request
+head before anything is merged. Upstream pull requests may not edit the gate,
+its allowlist or the workflows that run it (`--protect-security-files`), so the
+gate cannot be disabled by the same mechanism that invokes it.
+
+## Branches
+
 ### 3) Publish (`.github/workflows/python-publish.yml`)
 
 Triggers:
@@ -62,6 +102,7 @@ Triggers:
 Safety gates before publish:
 - Validate tag version matches `pyproject.toml` version (for tag pushes)
 - Skip publish if version already exists on PyPI
+- Run `make scan-blobs` (last line of defence against a committed binary)
 - Run `make package-smoke`
 
 ## Branch Protection Policy (`main`)
@@ -71,6 +112,7 @@ Required status checks:
 - `CI / typecheck`
 - `CI / arch-contracts`
 - `CI / ci-contracts`
+- `CI / blob-scan`
 - `CI / tests-core`
 - `CI / tests-full`
 - `CI / package-smoke`
@@ -91,6 +133,7 @@ Use the `Makefile` targets:
 - `make ci-fast`: lint + typecheck + import contracts + tests
 - `make ci`: `ci-fast` + full tests + package smoke
 - `make ci-contracts`: verify CI/workflow/docs contracts
+- `make scan-blobs`: run the binary/blob gate over the tracked tree
 - `make integration-roslyn`: run Roslyn-path integration parity tests
 
 ## Rollout

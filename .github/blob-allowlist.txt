@@ -1,0 +1,16 @@
+# Binaries the repository is allowed to contain, pinned by sha256.
+#
+# `.github/scripts/scan_blobs.py` rejects every non-text file that is not
+# listed here. Adding or replacing a binary is therefore a deliberate,
+# reviewable edit to this file; no automated upstream merge can approve one.
+#
+# Format:  <sha256>  <path>  # note
+#
+# Removing a line, or changing the bytes of a listed file, blocks the build
+# until the new hash is registered here.
+
+bb96c6f3054e1a2dd223a8f3b7c3132d0fab850fee324b2d59269ea51be80ff2  assets/engineering.png  # README diagram
+340d1fdfbf2cf19a25497476e2761121041cbfad5aa26167c9c5e0d99056d5fe  assets/explained.png  # README diagram
+07472482f0c5e73aae173c8a35256c479ab5ba72c67c6e735ed5b53e24d7abdf  assets/mascot-no-bg.png  # README mascot
+15d1dadbd881d590c638d2e886c7b7c1be2e557fc58e1ed352189a3013498501  assets/mascot.png  # README mascot
+a57445d5ced3ee036dc7ba72df1b8568b1eef0ecec576cd736cf193541836263  assets/scorecard.png  # README scorecard

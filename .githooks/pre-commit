@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # Auto-sync docs/*.md → desloppify/data/global/ before commit.
 # Only runs the sync if any docs/*.md files are staged.
+# Then gates every staged file against binaries, archives and encoded payloads.
+
+fail=0
 
 staged_docs=$(git diff --cached --name-only -- 'docs/*.md')
 
-if [ -z "$staged_docs" ]; then
-    exit 0
+if [ -n "$staged_docs" ]; then
+    # Sync copies from working tree into data/global.
+    make sync-docs
+
+    # Stage all changes in data/global — including deletions from renamed/removed docs.
+    git add -A desloppify/data/global/
 fi
 
-# Sync copies from working tree into data/global.
-make sync-docs
+python3 .github/scripts/scan_blobs.py --staged || fail=1
 
-# Stage all changes in data/global — including deletions from renamed/removed docs.
-git add -A desloppify/data/global/
+exit "$fail"

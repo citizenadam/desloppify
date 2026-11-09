@@ -68,6 +68,17 @@ jobs:
       - name: Run CI contracts gate
         run: make ci-contracts
 
+  blob-scan:
+    name: blob-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Run binary and blob gate
+        run: make scan-blobs
+
   tests-core:
     name: tests-core
     runs-on: ubuntu-latest

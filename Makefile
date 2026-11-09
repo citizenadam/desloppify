@@ -8,6 +8,7 @@
 	integration-roslyn \
 	tests \
 	tests-full \
+	scan-blobs \
 	sync-docs \
 	package-smoke \
 	install-hooks \
@@ -64,6 +65,11 @@ tests: install-ci-tools
 
 tests-full: install-full-tools
 	pytest -q $(PYTEST_XML_FLAG)
+
+# Binaries, archives and encoded payloads. Standard library only: the CI job
+# that runs this installs nothing first, so a third-party scanner could not.
+scan-blobs:
+	python .github/scripts/scan_blobs.py --all
 
 package-smoke: install-ci-tools
 	rm -rf dist .pkg-smoke

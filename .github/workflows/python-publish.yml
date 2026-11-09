@@ -53,6 +53,10 @@ jobs:
             echo "Version ${{ steps.version.outputs.version }} not on PyPI — will publish."
           fi
 
+      - name: Run binary and blob gate
+        if: steps.check.outputs.exists == 'false'
+        run: make scan-blobs
+
       - name: Run packaging smoke gate
         if: steps.check.outputs.exists == 'false'
         run: make package-smoke
