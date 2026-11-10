@@ -449,6 +449,50 @@ def test_cluster_update_direct_paths(capsys) -> None:
     assert "Nothing to update" in out2
 
 
+def test_cluster_update_depends_on_appends_across_calls(capsys) -> None:
+    """Repeated --depends-on calls accumulate edges instead of replacing (#675)."""
+    plan = {
+        "clusters": {
+            "mine": {
+                "issue_ids": [],
+                "action_steps": [],
+                "depends_on_clusters": ["cluster-a"],
+            },
+            "cluster-a": {"issue_ids": []},
+            "cluster-b": {"issue_ids": []},
+        }
+    }
+    saved: list[dict] = []
+
+    def _services():
+        return cluster_update_flow_mod.ClusterUpdateServices(
+            load_plan_fn=lambda: plan,
+            save_plan_fn=lambda payload: saved.append(payload),
+            append_log_entry_fn=lambda *_a, **_k: None,
+            parse_steps_file_fn=lambda _text: [],
+            normalize_step_fn=lambda step: {"title": str(step)},
+            step_summary_fn=lambda step: str(step),
+            utc_now_fn=lambda: "2026-03-09T00:00:00+00:00",
+            colorize_fn=lambda text, _tone: text,
+        )
+
+    args = argparse.Namespace(cluster_name="mine", depends_on=["cluster-b"])
+    cluster_update_mod.cmd_cluster_update(
+        args,
+        services=_services(),
+        plan_lock_fn=lambda: nullcontext(),
+    )
+    assert plan["clusters"]["mine"]["depends_on_clusters"] == ["cluster-a", "cluster-b"]
+
+    # Re-adding an existing edge is a no-op, not a duplicate.
+    cluster_update_mod.cmd_cluster_update(
+        args,
+        services=_services(),
+        plan_lock_fn=lambda: nullcontext(),
+    )
+    assert plan["clusters"]["mine"]["depends_on_clusters"] == ["cluster-a", "cluster-b"]
+
+
 def test_cluster_update_clears_dependencies(capsys) -> None:
     plan = {
         "clusters": {

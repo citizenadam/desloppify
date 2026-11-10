@@ -91,8 +91,21 @@ def _select_batch_runner(runner: str):
     Falls back to ``run_codex_batch`` for unknown runner strings; the
     caller has already validated the runner via ``validate_runner`` by
     the time the dispatch helper is reached during normal flows.
+
+    ``claude`` is rejected explicitly: Claude is not a subprocess runner,
+    so silently falling through to ``run_codex_batch`` would spawn a
+    ``codex`` subprocess the user never asked for.
     """
     normalized = (runner or "").strip().lower()
+    if normalized == "claude":
+        raise CommandError(
+            "The 'claude' runner does not spawn subprocesses. "
+            "Use --run-batches --dry-run to generate prompt files, "
+            "launch one subagent per prompt file, write JSON output to "
+            "results/batch-N.raw.txt, then import with "
+            "--import-run <run-dir> --scan-after-import.",
+            exit_code=1,
+        )
     if normalized == "opencode":
         return run_opencode_batch
     if normalized == "rovodev":

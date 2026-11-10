@@ -199,11 +199,21 @@ def _apply_cluster_metadata(
     if bad:
         print(services.colorize_fn(f"  Unknown cluster(s): {', '.join(bad)}", "red"))
         return False
-    cluster["depends_on_clusters"] = request.depends_on
-    if request.depends_on:
-        print(services.colorize_fn(f"  Dependencies set: {', '.join(request.depends_on)}", "dim"))
-    else:
+    # Append semantics (#675): repeated calls accumulate edges instead of
+    # silently dropping earlier ones. An empty list only arises from
+    # --clear-depends-on (--depends-on uses nargs="+", so it always carries
+    # at least one name) and resets the edge set.
+    if not request.depends_on:
+        cluster["depends_on_clusters"] = []
         print(services.colorize_fn("  Dependencies cleared.", "dim"))
+        return True
+    existing = cluster.get("depends_on_clusters") or []
+    merged = list(existing)
+    for name in request.depends_on:
+        if name not in merged:
+            merged.append(name)
+    cluster["depends_on_clusters"] = merged
+    print(services.colorize_fn(f"  Dependencies set: {', '.join(merged)}", "dim"))
     return True
 
 

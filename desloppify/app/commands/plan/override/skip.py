@@ -228,8 +228,15 @@ def cmd_plan_skip(args: argparse.Namespace) -> None:
     issue_ids = [issue_id for issue_id in issue_ids
                  if inventory.get(issue_id, {}).get("status") not in {"fixed", "auto_resolved"}]
     if not issue_ids:
-        print(colorize("  No matching issues found.", "yellow"))
-        return
+        # Fail loudly (#674): a zero-match skip is indistinguishable from a
+        # successful skip at exit 0, so scripting a triage stage can silently
+        # drop coverage. Callers relying on `set -e` need the nonzero exit.
+        raise CommandError(
+            "No matching issues found for pattern(s): "
+            + ", ".join(patterns) +
+            ". Nothing was skipped.",
+            exit_code=1,
+        )
     protected_ids = sorted(set(issue_ids) & protected_review_issue_ids(plan))
     if protected_ids:
         print(

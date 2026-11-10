@@ -193,6 +193,14 @@ def test_run_rovodev_batch_restores_valid_output_after_retry_failure(tmp_path: P
     assert json.loads(output_file.read_text()) == first_payload
 
 
+def test_select_batch_runner_rejects_claude_with_workflow_guidance() -> None:
+    """``claude`` must fail fast, never silently fall through to codex (#610)."""
+    from desloppify.base.exception_sets import CommandError
+
+    with pytest.raises(CommandError, match="does not spawn subprocesses"):
+        orchestrator_mod._select_batch_runner("claude")
+
+
 def test_select_batch_runner_dispatches_to_rovodev() -> None:
     """The orchestrator's runner dispatch table includes rovodev."""
     assert (

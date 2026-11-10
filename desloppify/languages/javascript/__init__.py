@@ -13,11 +13,11 @@ cfg = generic_lang(
     tools=[
         {
             "label": "ESLint",
-            "cmd": "npx eslint . --format json --no-error-on-unmatched-pattern 2>/dev/null",
+            "cmd": "npx eslint . --format json --no-error-on-unmatched-pattern",
             "fmt": "eslint",
             "id": "eslint_warning",
             "tier": 2,
-            "fix_cmd": "npx eslint . --fix --no-error-on-unmatched-pattern 2>/dev/null",
+            "fix_cmd": "npx eslint . --fix --no-error-on-unmatched-pattern",
         },
     ],
     exclude=["node_modules", "dist", "build", ".next", "coverage"],

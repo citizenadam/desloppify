@@ -565,6 +565,30 @@ class TestMakeToolPhase:
             argv = resolve_command_argv('"C:\\Program Files\\Tool\\tool.exe" --flag')
         assert argv == [r"C:\Program Files\Tool\tool.exe", "--flag"]
 
+    def test_resolve_command_argv_windows_resolves_shim_via_which(self):
+        """Bare ``npx`` resolves to the shim path on Windows (#714)."""
+        with (
+            patch("desloppify.languages._framework.generic_parts.tool_runner.os.name", "nt"),
+            patch(
+                "desloppify.languages._framework.generic_parts.tool_runner.shutil.which",
+                return_value=r"C:\Program Files\nodejs\npx.CMD",
+            ),
+        ):
+            argv = resolve_command_argv("npx eslint . --format json")
+        assert argv[0] == r"C:\Program Files\nodejs\npx.CMD"
+        assert argv[1:] == ["eslint", ".", "--format", "json"]
+
+    def test_resolve_command_argv_windows_keeps_bare_name_when_unresolvable(self):
+        with (
+            patch("desloppify.languages._framework.generic_parts.tool_runner.os.name", "nt"),
+            patch(
+                "desloppify.languages._framework.generic_parts.tool_runner.shutil.which",
+                return_value=None,
+            ),
+        ):
+            argv = resolve_command_argv("nonexistent_tool_xyz_123 --version")
+        assert argv == ["nonexistent_tool_xyz_123", "--version"]
+
 
 class TestToolSpecNormalization:
     def test_missing_fix_cmd_normalizes_to_none(self):

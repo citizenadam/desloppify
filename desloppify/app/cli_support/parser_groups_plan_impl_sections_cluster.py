@@ -111,7 +111,7 @@ def _add_cluster_subparser(plan_sub) -> None:
         nargs="+",
         default=None,
         metavar="CLUSTER",
-        help="Cluster(s) this cluster depends on",
+        help="Append cluster(s) this cluster depends on (accumulates across calls; use --clear-depends-on to reset)",
     )
     dependency_options.add_argument(
         "--clear-depends-on",

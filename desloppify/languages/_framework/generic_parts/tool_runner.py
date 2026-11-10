@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import shlex
+import shutil
 import subprocess  # nosec B404
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -56,6 +57,14 @@ def resolve_command_argv(cmd: str) -> list[str]:
         return _shell_argv(cmd)
     if os.name == "nt":
         argv = [arg[1:-1] if len(arg) >= 2 and arg[0] == arg[-1] == '"' else arg for arg in argv]
+        if argv:
+            # Resolve Windows shims (npx.CMD, yarn.CMD, ...) to their full
+            # path: subprocess.run(shell=False) does not perform PATHEXT
+            # lookup, so a bare "npx" would raise FileNotFoundError even
+            # when the shim is on PATH (#714).
+            resolved = shutil.which(argv[0])
+            if resolved:
+                argv = [resolved, *argv[1:]]
     return argv if argv else _shell_argv(cmd)
 
 
