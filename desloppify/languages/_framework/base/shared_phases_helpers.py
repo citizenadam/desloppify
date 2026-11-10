@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from desloppify.base.coercions import coerce_confidence
-from desloppify.base.discovery.source import SourceDiscoveryOptions, find_source_files
 from desloppify.base.discovery.paths import get_project_root
 from desloppify.base.discovery.source import SourceDiscoveryOptions, find_source_files
 from desloppify.base.output.terminal import log
@@ -166,6 +166,11 @@ def _find_external_test_files(
             SourceDiscoveryOptions(project_root=project_root),
         ):
             extra.add(str(project_root / filename))
+    test_roots = getattr(lang, "test_roots", None)
+    if isinstance(test_roots, list) and test_roots:
+        extra |= _find_test_root_files(
+            path_root, project_root, test_roots, exts, lang
+        )
     return extra
 
 
