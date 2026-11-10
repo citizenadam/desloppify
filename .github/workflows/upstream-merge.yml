@@ -66,49 +66,54 @@ jobs:
           with open("/tmp/pending.txt", "w") as f:
               for num, sha in pending:
                   f.write(f"{num} {sha}\n")
+          meta = {
+              str(pr["number"]): {
+                  "author": (pr.get("user") or {}).get("login"),
+                  "title": pr.get("title"),
+              }
+              for pr in prs
+          }
+          json.dump(meta, open("/tmp/pr_meta.json", "w"))
           print(f"{len(pending)} new upstream PR(s) to merge")
           for num, _ in pending:
               print(f"  PR #{num}")
           EOF
           echo "count=$(wc -l < /tmp/pending.txt)" >> "$GITHUB_OUTPUT"
 
-      # Fail closed: one blocked pull request stops the whole run, so nothing
-      # lands while a human decides on the finding.
-      - name: Scan pending PRs for binaries and encoded blobs
+      # Holds back anything that touches install/build/publish machinery, moves a
+      # dependency source, or is too large to have been read. A gate crash fails
+      # the run instead of being mistaken for a clean result.
+      - name: Classify pending PRs
         if: steps.pending.outputs.count != '0'
         run: |
-          base=$(git rev-parse refs/remotes/origin/main)
-          failed=0
-          while read -r num sha; do
-            echo "== PR #${num} (${sha})"
-            if python3 .github/scripts/scan_blobs.py \
-                 --ref "$sha" --base "$base" --allowlist-ref "$base" \
-                 --protect-security-files; then
-              echo "PR #${num}: clean"
-            else
-              echo "::error::PR #${num} is blocked by the binary/blob gate; nothing was merged"
-              failed=1
-            fi
-          done < /tmp/pending.txt
-          exit "$failed"
+          python3 .github/scripts/triage_pending.py \
+            --base "$(git rev-parse refs/remotes/origin/main)" \
+            --pending /tmp/pending.txt \
+            --meta /tmp/pr_meta.json \
+            --admitted /tmp/admitted.txt \
+            --summary /tmp/merge-summary.md
+          cat /tmp/merge-summary.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Merge new PRs
+      - name: Merge admitted PRs
         id: merge
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           merged=0
-          while read -r num sha; do
-            msg="Merge upstream PR #${num}"
-            if git merge --no-edit -m "$msg" "$sha" 2>/dev/null; then
-              echo "Merged PR #${num} (clean)"
-            else
-              git merge --abort
-              git merge -X ours --no-edit -m "$msg (resolved conflicts using ours)" "$sha"
-              echo "Merged PR #${num} (conflicts resolved using ours)"
-            fi
-            merged=$((merged + 1))
-          done < /tmp/pending.txt
+          if [ -f /tmp/admitted.txt ] && [ -s /tmp/admitted.txt ]; then
+            while read -r num sha; do
+              msg="Merge upstream PR #${num}"
+              if git merge --no-edit -m "$msg" "$sha" 2>/dev/null; then
+                echo "Merged PR #${num} (clean)"
+              else
+                git merge --abort
+                git merge -X ours --no-edit -m "$msg (resolved conflicts using ours)" "$sha"
+                echo "Merged PR #${num} (conflicts resolved using ours)"
+              fi
+              merged=$((merged + 1))
+            done < /tmp/admitted.txt
+          fi
+          merged=${merged:-0}
           echo "merged=$merged" >> "$GITHUB_OUTPUT"
           if [ "$merged" -gt 0 ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"

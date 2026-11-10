@@ -90,20 +90,48 @@ head before anything is merged. Upstream pull requests may not edit the gate,
 its allowlist or the workflows that run it (`--protect-security-files`), so the
 gate cannot be disabled by the same mechanism that invokes it.
 
+## Upstream admission policy
+
+`.github/upstream-merge-policy.json` decides which upstream pull requests the
+auto-merge may merge (`scan_pr.py`), on top of the blob gate:
+
+- blocked paths: `.github/`, `.githooks/`, `Makefile`, `setup.py`, `setup.cfg`,
+  lock files, `requirements*`, `tox.ini`, `noxfile.py`, `MANIFEST.in`,
+  `.gitattributes`, `.gitmodules`, `sitecustomize.py`, `*.pth`;
+- blocked lines: `[build-system]` / `build-backend`, `git+` sources, extra
+  index URLs, `dependency_links`, downloaded `.whl`/`.tar.gz` URLs;
+- review-only: `pyproject.toml`, `conftest.py` (both run inside CI),
+  more than 20 files or 1000 changed lines, skip-listed authors and titles.
+
+Historic upstream pull requests are small — median 2 files / 95 lines, 90th
+percentile 8 / 396, largest 74 / 2123 — so the size limit holds back change
+nobody could have read. Held pull requests are listed in the auto-merge run
+summary; admitting one is an `allow` entry in the policy.
+
+Use `python3 .github/scripts/scan_pr.py --pr N --base origin/main --head <sha>`
+to judge a single pull request locally.
+
 ## Branches
 
 ### 3) Publish (`.github/workflows/python-publish.yml`)
 
 Triggers:
-- `release.published`
-- `push` tag `v*`
+- `workflow_run` on `CI` completing for `main` (publish only when CI succeeded)
 - `workflow_dispatch`
 
+Running on `push` is deliberately not used: the auto-merge pushes with
+`GITHUB_TOKEN`, which never triggers push workflows, so code could ship before
+any CI run existed.
+
 Safety gates before publish:
-- Validate tag version matches `pyproject.toml` version (for tag pushes)
+- Refuse unless the checked-out commit is an ancestor of `origin/main`
 - Skip publish if version already exists on PyPI
 - Run `make scan-blobs` (last line of defence against a committed binary)
 - Run `make package-smoke`
+- Attest build provenance for `dist/*` (`actions/attest-build-provenance`)
+
+Third-party actions are pinned to a commit SHA; GitHub-owned actions track
+the latest major tag.
 
 ## Branch Protection Policy (`main`)
 

@@ -90,18 +90,38 @@ def test_integration_workflow_uses_deterministic_roslyn_path() -> None:
     assert any("make integration-roslyn" in run for run in _run_commands(job))
 
 
-def test_publish_workflow_keeps_release_safety_gates() -> None:
+def test_publish_workflow_waits_for_ci_on_the_same_commit() -> None:
     wf = _load_yaml(PUBLISH_WORKFLOW)
     on_block = _on_block(wf)
-    assert on_block.get("push", {}).get("branches") == ["main"]
     assert "workflow_dispatch" in on_block
+    workflow_run = on_block.get("workflow_run")
+    assert workflow_run is not None, "publishing must wait for CI to finish"
+    assert workflow_run.get("workflows") == ["CI"]
+    assert workflow_run.get("types") == ["completed"]
+    assert "push" not in on_block, "a push must not publish untested code"
 
     publish_job = wf["jobs"]["publish"]
+    condition = publish_job["if"]
+    assert "github.event.workflow_run.conclusion == 'success'" in condition
+    assert "head_branch == 'main'" in condition
+
     names = _step_names(publish_job)
+    assert "Verify the commit is on main" in names
     assert "Check if version exists on PyPI" in names
+    assert "Run binary and blob gate" in names
     assert "Run packaging smoke gate" in names
+    assert "Attest build provenance" in names
     assert "Publish to PyPI" in names
-    assert any("make package-smoke" in run for run in _run_commands(publish_job))
+    runs = _run_commands(publish_job)
+    assert any("make scan-blobs" in run for run in runs)
+    assert any("make package-smoke" in run for run in runs)
+    assert any("merge-base --is-ancestor" in run for run in runs)
+
+    uses = {step.get("uses") for step in publish_job["steps"] if step.get("uses")}
+    assert "actions/attest-build-provenance@v4" in uses
+    publish_action = next(uses for uses in uses if uses.startswith("pypa/gh-action-pypi-publish@"))
+    ref = publish_action.split("@", 1)[1]
+    assert re.fullmatch(r"[0-9a-f]{40}", ref), f"third-party action must be pinned: {publish_action}"
 
 
 def test_makefile_contains_ci_gate_targets() -> None:

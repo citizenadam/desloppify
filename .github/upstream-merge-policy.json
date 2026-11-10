@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "_comment": [
+    "Admission policy for upstream pull requests, applied by",
+    ".github/scripts/scan_pr.py before the auto-merge touches a branch.",
+    "Verdicts: 'ok' merges; 'review' and 'block' keep the PR out of main and",
+    "appear in the run summary. The policy is read from the trusted base ref,",
+    "so a pull request cannot loosen the rules that judge it."
+  ],
+  "review_thresholds": {
+    "_comment": "Historic upstream PRs: median 2 files / 95 lines, p90 8 / 396, largest 74 / 2123.",
+    "max_files": 20,
+    "max_changed_lines": 1000
+  },
+  "blocked_paths": {
+    ".github/": "CI, the gate scripts and the publish pipeline",
+    "Makefile": "runs arbitrary commands in CI and in the publish job",
+    "setup.py": "build backend: executes with publish credentials",
+    "setup.cfg": "build and dependency configuration",
+    "requirements.txt": "dependency source",
+    "requirements/": "dependency source",
+    "constraints.txt": "dependency pinning",
+    "uv.lock": "resolved dependency sources",
+    "poetry.lock": "resolved dependency sources",
+    "Pipfile.lock": "resolved dependency sources",
+    "pip.conf": "package index override",
+    ".pip/": "package index override",
+    "tox.ini": "runs arbitrary commands in CI",
+    "noxfile.py": "runs arbitrary commands in CI",
+    "MANIFEST.in": "changes what the published sdist contains",
+    ".gitmodules": "fetches code from another repository at CI time",
+    ".gitattributes": "filter and diff drivers can execute commands",
+    "sitecustomize.py": "imported automatically by every Python interpreter",
+    "usercustomize.py": "imported automatically by every Python interpreter",
+    "*.pth": "site-packages hook, imported automatically"
+  },
+  "review_paths": {
+    "pyproject.toml": "dependencies and packaging metadata; the build backend is blocked separately",
+    "conftest.py": "pytest collection hook: runs in CI and can neutralise the tests",
+    "*/conftest.py": "pytest collection hook: runs in CI and can neutralise the tests"
+  },
+  "blocked_lines": [
+    {
+      "pattern": "\\[build-system\\]|build-backend|backend-path",
+      "reason": "changes the build backend, which runs with publish credentials",
+      "paths": ["pyproject.toml", "setup.py", "setup.cfg", "pyproject/*"]
+    },
+    {
+      "pattern": "\\bgit\\+",
+      "reason": "installs from a git source instead of the package index"
+    },
+    {
+      "pattern": "--index-url|--extra-index-url|--trusted-host|--find-links",
+      "reason": "repoints the package index",
+      "paths": ["*.toml", "*.cfg", "*.ini", "*.txt", "*.yml", "*.yaml", "*.sh", "Makefile", "*.lock"]
+    },
+    {
+      "pattern": "PIP_INDEX_URL|PIP_EXTRA_INDEX_URL|PIP_TRUSTED_HOST",
+      "reason": "repoints the package index",
+      "paths": ["*.toml", "*.cfg", "*.ini", "*.txt", "*.yml", "*.yaml", "*.sh", "Makefile", "*.lock"]
+    },
+    {
+      "pattern": "dependency_links",
+      "reason": "installs from an arbitrary URL"
+    },
+    {
+      "pattern": "https?://[^\\s\"']+\\.(whl|tar\\.gz|tgz|zip)\\b",
+      "reason": "installs a downloaded archive instead of a resolved dependency",
+      "paths": ["*.toml", "*.cfg", "*.ini", "*.txt", "*.yml", "*.yaml", "*.sh", "Makefile", "*.lock"]
+    },
+    {
+      "pattern": "^\\s*(index|extra-index-url|trusted-host|find-links)\\s*=",
+      "reason": "repoints the package index",
+      "paths": ["*.cfg", "*.ini", "*.txt", "*.toml", "pip.conf"]
+    }
+  ],
+  "skip_authors": [],
+  "review_title_patterns": [
+    "(?i)\\b(wip|do not merge|don't merge|revert me|test only)\\b"
+  ],
+  "allow": {},
+  "skip": {}
+}

@@ -1,11 +1,19 @@
-# Publish to PyPI on every push to main.
-# The "Check if version exists" step makes this idempotent — if the version
-# is already on PyPI, the job skips the publish cleanly.
+# Publish to PyPI only after CI has passed the exact commit being published.
+#
+# Previously this ran on `push` to main, which meant code reached users before
+# (or without) any CI run: the upstream auto-merge pushes with GITHUB_TOKEN,
+# and such pushes never trigger push workflows. Waiting on `workflow_run`
+# closes that hole: nothing ships unless a CI run on that commit succeeded.
+#
+# The "Check if version exists" step keeps this idempotent — a version already
+# on PyPI is skipped cleanly, so repeated CI successes do not re-publish.
 
 name: Publish to PyPI
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -18,16 +26,35 @@ concurrency:
 
 jobs:
   publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # required for trusted publishing
-
+      id-token: write        # trusted publishing to PyPI
+      attestations: write    # build provenance for the published files
+      contents: read
     environment:
       name: pypi
       url: https://pypi.org/p/desloppify
 
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout the tested commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify the commit is on main
+        run: |
+          sha=$(git rev-parse HEAD)
+          git fetch -q origin main
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$sha is not on main; refusing to publish"
+            exit 1
+          fi
+          echo "Publishing $sha (on main)"
 
       - uses: actions/setup-python@v7
         with:
@@ -61,8 +88,14 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: make package-smoke
 
+      - name: Attest build provenance
+        if: steps.check.outputs.exists == 'false'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: "dist/*"
+
       - name: Publish to PyPI
         if: steps.check.outputs.exists == 'false'
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086
         with:
           packages-dir: dist/

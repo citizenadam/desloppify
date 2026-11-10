@@ -38,10 +38,20 @@ import argparse
 import hashlib
 import os
 import re
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from _gitutil import (
+    GitError,
+    changed_paths,
+    git,
+    read_blobs,
+    read_working_tree,
+    repo_root,
+    tree_entries,
+    working_tree_entries,
+)
 
 ALLOWLIST_PATH = ".github/blob-allowlist.txt"
 SAMPLE_BYTES = 8192
@@ -165,141 +175,25 @@ class Finding:
         return f"{location}: {self.reason}"
 
 
-@dataclass(frozen=True)
-class Entry:
-    path: str
-    mode: str
-    spec: str
-
-
-class GitError(RuntimeError):
-    pass
-
-
-def _git(root: Path, *args: str) -> bytes:
-    proc = subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, check=False
-    )
-    if proc.returncode != 0:
-        raise GitError(
-            f"git {' '.join(args)} failed: {proc.stderr.decode('utf-8', 'replace').strip()}"
-        )
-    return proc.stdout
-
-
-def _repo_root(path: Path) -> Path:
-    return Path(_git(path, "rev-parse", "--show-toplevel").decode().strip())
-
-
-def _tree_entries(root: Path, rev: str) -> list[Entry]:
-    """Entries of ``rev`` from one `git ls-tree` call."""
-    raw = _git(root, "ls-tree", "-r", "-z", rev)
-    entries: list[Entry] = []
-    for record in raw.split(b"\0"):
-        if not record:
-            continue
-        meta, path = record.split(b"\t", 1)
-        mode, kind, _sha = meta.split()
-        if kind != b"blob":
-            continue
-        decoded = path.decode("utf-8", "surrogateescape")
-        entries.append(Entry(path=decoded, mode=mode.decode(), spec=f"{rev}:{decoded}"))
-    return entries
-
-
-def _changed_paths(root: Path, *args: str) -> list[tuple[str, str, str]]:
-    """(status, new mode, new path) for each change reported by `git diff --raw`."""
-    raw = _git(root, "diff", "--raw", "-z", *args)
-    fields = raw.split(b"\0")
-    changes: list[tuple[str, str, str]] = []
-    pos = 0
-    while pos < len(fields) and fields[pos]:
-        old_mode, new_mode, _old_sha, _new_sha, status = (
-            fields[pos].decode()[1:].split()
-        )
-        del old_mode
-        if status[0] in "RC":
-            new_path = fields[pos + 2].decode("utf-8", "surrogateescape")
-            pos += 3
-        else:
-            new_path = fields[pos + 1].decode("utf-8", "surrogateescape")
-            pos += 2
-        changes.append((status, new_mode, new_path))
-    return changes
+Entry = tuple[str, str, str]  # path, mode, object spec
 
 
 def _entries_for_changes(
     changes: list[tuple[str, str, str]], spec_prefix: str
 ) -> list[Entry]:
     return [
-        Entry(path=path, mode=mode, spec=f"{spec_prefix}{path}")
+        (path, mode, f"{spec_prefix}{path}")
         for status, mode, path in changes
         if status[0] in "AMR"
     ]
 
-
-def _read_blobs(root: Path, specs: list[str]) -> list[bytes | None]:
-    """Blob contents for ``specs`` in order, from a single cat-file process."""
-    if not specs:
-        return []
-    proc = subprocess.run(
-        ["git", "cat-file", "--batch"],
-        cwd=root,
-        input=("\n".join(specs) + "\n").encode(),
-        capture_output=True,
-        check=False,
-    )
-    if proc.returncode != 0:
-        raise GitError(
-            f"git cat-file failed: {proc.stderr.decode('utf-8', 'replace').strip()}"
-        )
-    out = proc.stdout
-    contents: list[bytes | None] = []
-    pos = 0
-    for _spec in specs:
-        newline = out.find(b"\n", pos)
-        if newline < 0:
-            raise GitError("git cat-file returned a truncated batch")
-        header = out[pos:newline]
-        pos = newline + 1
-        if header.endswith(b" missing") or header.endswith(b" ambiguous"):
-            contents.append(None)
-            continue
-        _sha, _kind, size = header.rsplit(b" ", 2)
-        length = int(size)
-        contents.append(out[pos : pos + length])
-        pos += length + 1
-    return contents
-
-
-def _working_tree_entries(root: Path) -> list[Entry]:
-    raw = _git(root, "ls-files", "-s", "-z")
-    entries: list[Entry] = []
-    for record in raw.split(b"\0"):
-        if not record:
-            continue
-        meta, path_bytes = record.split(b"\t", 1)
-        mode, _sha, _stage = meta.split()
-        path = path_bytes.decode("utf-8", "surrogateescape")
-        entries.append(Entry(path=path, mode=mode.decode(), spec=path))
-    return entries
-
-
-def _read_working_tree(root: Path, entries: list[Entry]) -> list[bytes | None]:
-    contents: list[bytes | None] = []
-    for entry in entries:
-        try:
-            contents.append((root / entry.path).read_bytes())
-        except OSError:
-            contents.append(None)
-    return contents
 
 
 def _diff_entries(
     root: Path, base: str, head: str
 ) -> tuple[list[Entry], list[tuple[str, str]]]:
     """(entries added by ``base...head``, every (status, path) change)."""
-    changes = _changed_paths(root, "--diff-filter=AMRD", f"{base}...{head}")
+    changes = changed_paths(root, "--diff-filter=AMRD", f"{base}...{head}")
     entries = _entries_for_changes(changes, f"{head}:")
     return entries, [(status, path) for status, _mode, path in changes]
 
@@ -392,7 +286,7 @@ def check_file(
     return []
 
 
-def _load_allowlist(text: str) -> dict[str, str]:
+def load_allowlist(text: str) -> dict[str, str]:
     allowlist: dict[str, str] = {}
     for number, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.split("#", 1)[0].strip()
@@ -416,15 +310,10 @@ def _allowlist_text(root: Path, ref: str | None) -> str:
         if not target.is_file():
             raise ValueError(f"missing {ALLOWLIST_PATH}")
         return target.read_text(encoding="utf-8")
-    proc = subprocess.run(
-        ["git", "show", f"{ref}:{ALLOWLIST_PATH}"],
-        cwd=root,
-        capture_output=True,
-        check=False,
-    )
-    if proc.returncode != 0:
-        raise ValueError(f"{ALLOWLIST_PATH} is missing at {ref}")
-    return proc.stdout.decode("utf-8")
+    try:
+        return git(root, "show", f"{ref}:{ALLOWLIST_PATH}").decode("utf-8")
+    except GitError as exc:
+        raise ValueError(f"{ALLOWLIST_PATH} is missing at {ref}") from exc
 
 
 def _protected_findings(changes: list[tuple[str, str]]) -> list[Finding]:
@@ -452,34 +341,34 @@ def scan(
     protect_security_files: bool,
 ) -> list[Finding]:
     try:
-        allowlist = _load_allowlist(_allowlist_text(root, allowlist_ref))
+        allowlist = load_allowlist(_allowlist_text(root, allowlist_ref))
     except ValueError as exc:
         raise SystemExit(f"scan_blobs: {exc}") from exc
 
     changes: list[tuple[str, str]] = []
     if staged:
-        staged_changes = _changed_paths(root, "--cached", "--diff-filter=AMR")
+        staged_changes = changed_paths(root, "--cached", "--diff-filter=AMR")
         entries = _entries_for_changes(staged_changes, ":")
-        contents = _read_blobs(root, [entry.spec for entry in entries])
+        contents = read_blobs(root, [spec for _path, _mode, spec in entries])
     elif base is not None:
         head = rev or "HEAD"
         entries, changes = _diff_entries(root, base, head)
-        contents = _read_blobs(root, [entry.spec for entry in entries])
+        contents = read_blobs(root, [spec for _path, _mode, spec in entries])
     elif rev is not None:
-        entries = _tree_entries(root, rev)
-        contents = _read_blobs(root, [entry.spec for entry in entries])
+        entries = tree_entries(root, rev)
+        contents = read_blobs(root, [spec for _path, _mode, spec in entries])
     else:
-        entries = _working_tree_entries(root)
-        contents = _read_working_tree(root, entries)
+        entries = working_tree_entries(root)
+        contents = read_working_tree(root, [path for path, _mode, _spec in entries])
 
     findings: list[Finding] = []
     if protect_security_files and changes:
         findings.extend(_protected_findings(changes))
-    for entry, data in zip(entries, contents, strict=True):
+    for (path, mode, _spec), data in zip(entries, contents, strict=True):
         if data is None:
-            findings.append(Finding(entry.path, "could not be read"))
+            findings.append(Finding(path, "could not be read"))
             continue
-        findings.extend(check_file(entry.path, data, entry.mode, allowlist=allowlist))
+        findings.extend(check_file(path, data, mode, allowlist=allowlist))
     return findings
 
 
@@ -515,7 +404,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.base and not args.ref:
         parser.error("--base requires --ref")
 
-    root = _repo_root(Path(args.root).resolve())
+    root = repo_root(Path(args.root).resolve())
     findings = scan(
         root,
         rev=args.ref,

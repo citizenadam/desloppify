@@ -10,7 +10,10 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = REPO_ROOT / ".github" / "scripts" / "scan_blobs.py"
+SCRIPTS = REPO_ROOT / ".github" / "scripts"
+SCRIPT = SCRIPTS / "scan_blobs.py"
+
+sys.path.insert(0, str(SCRIPTS))
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 24
 ELF = b"\x7fELF" + b"\x00" * 28
@@ -230,7 +233,7 @@ def test_pull_request_cannot_approve_its_own_binary(scanner, repo: Path) -> None
 
 def test_allowlist_parser_rejects_malformed_lines(scanner) -> None:
     with pytest.raises(ValueError, match="expected"):
-        scanner._load_allowlist("not-a-hash  assets/mascot.png\n")
+        scanner.load_allowlist("not-a-hash  assets/mascot.png\n")
 
 
 def test_staged_scan_sees_index_content(scanner, repo: Path) -> None:
