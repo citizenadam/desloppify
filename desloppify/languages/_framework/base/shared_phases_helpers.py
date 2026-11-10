@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from desloppify.base.coercions import coerce_confidence
+from desloppify.base.discovery.source import SourceDiscoveryOptions, find_source_files
 from desloppify.base.discovery.paths import get_project_root
 from desloppify.base.discovery.source import SourceDiscoveryOptions, find_source_files
 from desloppify.base.output.terminal import log
@@ -60,6 +61,80 @@ def _filter_boilerplate_entries_by_zone(
     if skipped:
         log(f"         zones: {skipped} boilerplate clusters excluded")
     return filtered
+
+
+def _glob_to_regex(pattern: str) -> re.Pattern[str]:
+    """Translate a project-relative glob into a regex.
+
+    ``*`` and ``?`` stay within one path segment; ``**`` spans segments.
+    A pattern that names a directory also matches everything below it.
+    """
+    pattern = pattern.replace("\\", "/").removeprefix("./").rstrip("/")
+    out: list[str] = []
+    i = 0
+    while i < len(pattern):
+        ch = pattern[i]
+        if pattern.startswith("**/", i):
+            out.append("(?:.*/)?")
+            i += 3
+        elif pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif ch == "*":
+            out.append("[^/]*")
+            i += 1
+        elif ch == "?":
+            out.append("[^/]")
+            i += 1
+        else:
+            out.append(re.escape(ch))
+            i += 1
+    return re.compile("".join(out) + "(?:/.*)?$")
+
+
+def _find_test_root_files(
+    path_root: Path,
+    project_root: Path,
+    patterns: list[str],
+    exts: tuple[str, ...],
+    lang: LangRuntimeContract,
+) -> set[str]:
+    """Find test files matching ``test_roots`` globs among the scan's own candidates.
+
+    Candidates come from the same file discovery the scan uses (the language's
+    ``file_finder``, else ``find_source_files`` with the language exclusions),
+    so ``desloppify exclude`` entries and language file exclusions apply.
+    """
+    regexes = [_glob_to_regex(p) for p in patterns if isinstance(p, str) and p.strip()]
+    if not regexes:
+        return set()
+    if lang.file_finder is not None:
+        candidates = lang.file_finder(project_root)
+    else:
+        exclusions = getattr(lang, "exclusions", None) or []
+        candidates = find_source_files(
+            project_root,
+            list(exts),
+            SourceDiscoveryOptions(
+                exclusions=tuple(exclusions), project_root=project_root
+            ),
+        )
+    found: set[str] = set()
+    for candidate in candidates:
+        if not candidate.endswith(exts):
+            continue
+        full = Path(candidate)
+        if not full.is_absolute():
+            full = project_root / full
+        if full.resolve().is_relative_to(path_root):
+            continue
+        try:
+            rel_path = full.relative_to(project_root).as_posix()
+        except ValueError:
+            continue
+        if any(rx.match(rel_path) for rx in regexes):
+            found.add(str(full))
+    return found
 
 
 def _find_external_test_files(

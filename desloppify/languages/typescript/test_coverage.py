@@ -17,7 +17,7 @@ from desloppify.languages.typescript.detectors.deps.resolve import (
 )
 
 TS_IMPORT_RE = re.compile(
-    r"""(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(?:type\s+)?['\"]([^'\"]+)['\"]""",
+    r"""(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)(?:type\s+)?['\"]([^'\"]+)['\"]""",
     re.MULTILINE,
 )
 TS_REEXPORT_RE = re.compile(
