@@ -37,7 +37,7 @@ _DETECTOR_CASCADE = {
 
 _REMINDER_DECAY_THRESHOLD = 3  # Suppress after this many occurrences
 
-_FEEDBACK_URL = "https://github.com/peteromalley/desloppify/issues"
+_FEEDBACK_URL = "https://github.com/citizenadam/desloppify/issues"
 
 
 def _history_strict(entry: dict) -> float | None:

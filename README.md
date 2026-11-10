@@ -164,6 +164,6 @@ If you'd like to join a community of vibe engineers who want to build beautiful 
 
 ---
 
-Issues, improvements, and PRs are hugely appreciated — [github.com/peteromallet/desloppify](https://github.com/peteromallet/desloppify).
+Issues, improvements, and PRs are hugely appreciated — [github.com/citizenadam/desloppify](https://github.com/citizenadam/desloppify).
 
 Desloppify is licensed under the [Apache License, Version 2.0](LICENSE). You may use, modify, and distribute it, including in commercial and proprietary products, subject to the license terms.

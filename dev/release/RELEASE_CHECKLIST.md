@@ -51,13 +51,13 @@ After pushing to `main` and publishing the release:
   ```bash
   # Comment on and close all tagged issues
   gh issue list --label "release:vCURRENT" --state open --json number --jq '.[].number' | while read num; do
-    gh issue comment "$num" --body "Released in vCURRENT — https://github.com/peteromallet/desloppify/releases/tag/vCURRENT"
+    gh issue comment "$num" --body "Released in vCURRENT — https://github.com/citizenadam/desloppify/releases/tag/vCURRENT"
     gh issue close "$num"
   done
 
   # Comment on tagged PRs (PRs usually auto-close, but comment for visibility)
   gh pr list --label "release:vCURRENT" --state all --json number --jq '.[].number' | while read num; do
-    gh pr comment "$num" --body "Released in vCURRENT — https://github.com/peteromallet/desloppify/releases/tag/vCURRENT"
+    gh pr comment "$num" --body "Released in vCURRENT — https://github.com/citizenadam/desloppify/releases/tag/vCURRENT"
   done
   ```
 
