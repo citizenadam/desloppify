@@ -43,14 +43,36 @@ jobs:
 
       - name: Determine pending PRs
         id: pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl -fsS "https://api.github.com/repos/peteromallet/desloppify/pulls?state=open&per_page=100&page=1" -o /tmp/prs_page1.json
           python3 - <<'EOF'
-          import json, subprocess
+          import json, os, subprocess, urllib.request
 
-          prs = json.load(open("/tmp/prs_page1.json"))
-          if not isinstance(prs, list):
-              raise SystemExit(f"Unexpected API response: {str(prs)[:200]}")
+          API = "https://api.github.com/repos/peteromallet/desloppify/pulls"
+
+          def fetch(page):
+              request = urllib.request.Request(
+                  f"{API}?state=open&per_page=100&page={page}",
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                      "User-Agent": "desloppify-upstream-merge",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return json.load(response)
+
+          # Upstream has more than one page of open pull requests; reading only
+          # page 1 silently ignored PRs past the hundredth.
+          prs = []
+          for page in range(1, 11):
+              batch = fetch(page)
+              if not isinstance(batch, list):
+                  raise SystemExit(f"Unexpected API response: {str(batch)[:200]}")
+              prs.extend(batch)
+              if len(batch) < 100:
+                  break
 
           pending = []
           for pr in prs:
@@ -74,7 +96,7 @@ jobs:
               for pr in prs
           }
           json.dump(meta, open("/tmp/pr_meta.json", "w"))
-          print(f"{len(pending)} new upstream PR(s) to merge")
+          print(f"{len(prs)} open upstream PR(s), {len(pending)} to merge")
           for num, _ in pending:
               print(f"  PR #{num}")
           EOF

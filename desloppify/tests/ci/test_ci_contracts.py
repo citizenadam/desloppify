@@ -124,6 +124,34 @@ def test_publish_workflow_waits_for_ci_on_the_same_commit() -> None:
     assert re.fullmatch(r"[0-9a-f]{40}", ref), f"third-party action must be pinned: {publish_action}"
 
 
+AUTO_MERGE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "upstream-merge.yml"
+
+
+def test_auto_merge_reads_every_page_of_open_pull_requests() -> None:
+    wf = _load_yaml(AUTO_MERGE_WORKFLOW)
+    step = next(
+        step for step in wf["jobs"]["sync"]["steps"] if step.get("name") == "Determine pending PRs"
+    )
+    run = step["run"]
+
+    assert "for page in range" in run, "reading only page 1 ignored every PR past the 100th"
+    assert "len(batch) < 100" in run
+    assert "page={page}" in run
+    assert "GH_TOKEN" in step["env"], "unauthenticated API calls hit the 60-per-hour limit"
+
+
+def test_auto_merge_judges_prs_before_merging() -> None:
+    wf = _load_yaml(AUTO_MERGE_WORKFLOW)
+    steps = wf["jobs"]["sync"]["steps"]
+    names = [step.get("name") for step in steps]
+    assert names.index("Classify pending PRs") < names.index("Merge admitted PRs")
+    classify = next(step for step in steps if step.get("name") == "Classify pending PRs")
+    assert "triage_pending.py" in classify["run"]
+    assert "--admitted" in classify["run"]
+    merge = next(step for step in steps if step.get("name") == "Merge admitted PRs")
+    assert "/tmp/admitted.txt" in merge["run"]
+
+
 def test_makefile_contains_ci_gate_targets() -> None:
     text = MAKEFILE.read_text()
     targets = set(re.findall(r"^([a-zA-Z0-9_-]+):", text, flags=re.MULTILINE))
