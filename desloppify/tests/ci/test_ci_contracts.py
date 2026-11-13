@@ -127,6 +127,28 @@ def test_publish_workflow_waits_for_ci_on_the_same_commit() -> None:
 AUTO_MERGE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "upstream-merge.yml"
 
 
+def test_auto_merge_bumps_the_version_once_per_merged_pr() -> None:
+    wf = _load_yaml(AUTO_MERGE_WORKFLOW)
+    merge = next(
+        step for step in wf["jobs"]["sync"]["steps"] if step.get("name") == "Merge admitted PRs"
+    )
+    run = merge["run"]
+
+    bump_at = run.index("bump_version.py")
+    assert run.index("git merge") < bump_at, "the bump belongs to the merge commit it ships with"
+    assert "git commit --amend" in run
+    assert ".github/release-version.txt" in run
+
+
+def test_release_counter_is_the_version_anchor() -> None:
+    counter = REPO_ROOT / ".github" / "release-version.txt"
+    version = counter.read_text(encoding="utf-8").strip()
+    assert re.fullmatch(r"1\.1\.\d+", version), version
+
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert project["project"]["version"] == version
+
+
 def test_auto_merge_reads_every_page_of_open_pull_requests() -> None:
     wf = _load_yaml(AUTO_MERGE_WORKFLOW)
     step = next(

@@ -132,6 +132,12 @@ jobs:
                 git merge -X ours --no-edit -m "$msg (resolved conflicts using ours)" "$sha"
                 echo "Merged PR #${num} (conflicts resolved using ours)"
               fi
+              # One version per merged PR: 1.1.178, 1.1.179, ... The counter is
+              # kept under .github/ so an upstream PR cannot move it backwards.
+              version=$(python3 .github/scripts/bump_version.py)
+              git add pyproject.toml .github/release-version.txt
+              git commit --amend --no-edit -q
+              echo "Version ${version}"
               merged=$((merged + 1))
             done < /tmp/admitted.txt
           fi
