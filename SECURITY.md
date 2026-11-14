@@ -35,11 +35,12 @@ cannot approve itself, and changes to the gate files are themselves blocked.
 - **It does not review Python code.** A pull request can still add a backdoor
   to a module, or weaken a test, in plain text. Only CodeQL and the test suite
   look at that code, and neither is a reviewer.
-- **It does not sandbox the build.** Publishing uses PyPI trusted publishing
-  from a GitHub-hosted runner, only after CI succeeded on that exact commit and
-  the commit is an ancestor of `main`. Build provenance is attested for the
-  published files (`actions/attest-build-provenance`), so a consumer can verify
-  what built a wheel, not whether it is benign.
+- **It does not sandbox the build.** There is no publish step: the fork ships
+  nothing, so a malicious merge cannot reach anyone through a package index.
+  The PyPI project `desloppify` belongs to upstream and is published by them
+  from their own repository; this fork has no trusted publisher there and the
+  publish workflow was removed rather than left failing. Anyone consuming this
+  fork is consuming the git repository directly.
 - **It cannot stop a compromised upstream account** from merging code that is
   plain text and small. The admission limit (20 files / 1000 lines) narrows the
   blast radius; it does not eliminate it.
@@ -50,12 +51,12 @@ cannot approve itself, and changes to the gate files are themselves blocked.
 
 ## Reporting
 
-If you find a problem in this fork, open an issue at
+If you believe code merged into this fork is malicious, open an issue at
 <https://github.com/citizenadam/desloppify/issues>. Problems that belong to
 upstream code rather than the fork should go to
 <https://github.com/peteromallet/desloppify/issues>; the fork will pick the fix
 up automatically.
 
-If you believe a published version of `desloppify` contains malicious code,
-report it on PyPI as well: yanking a release there is what protects users who
-already installed it.
+This fork publishes no packages, so there is nothing to yank. If a release
+published from upstream's repository looks wrong, report it on PyPI or to the
+upstream maintainer — that is the distribution channel users install from.

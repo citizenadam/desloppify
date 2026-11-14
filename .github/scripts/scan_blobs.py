@@ -2,9 +2,9 @@
 """Reject binaries, archives and encoded payloads before they reach `main`.
 
 The upstream auto-merge commits every upstream pull request without review, so
-a single committed binary would be published to PyPI on the following push.
-This gate runs on the pull-request head before anything is merged, and again
-on the merged tree before the push.
+a single committed binary would land on `main` and reach anyone tracking the
+fork. This gate runs on the pull-request head before anything is merged, and
+again on the merged tree before the push.
 
 Standard library only: the CI job that runs it installs nothing first, so a
 third-party scanner could not be installed there either.
@@ -151,7 +151,6 @@ PROTECTED_PATHS = (
     ".github/scripts/scan_blobs.py",
     ".github/workflows/ci.yml",
     ".github/workflows/codeql.yml",
-    ".github/workflows/python-publish.yml",
     ".github/workflows/upstream-merge.yml",
     ".githooks/pre-commit",
 )

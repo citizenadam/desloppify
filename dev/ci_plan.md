@@ -113,22 +113,24 @@ to judge a single pull request locally.
 
 ## Branches
 
-### 3) Publish (`.github/workflows/python-publish.yml`)
+### 3) Publishing: removed on purpose
 
-Triggers:
-- `workflow_run` on `CI` completing for `main` (publish only when CI succeeded)
-- `workflow_dispatch`
+There is no publish workflow. The fork does not ship packages:
 
-Running on `push` is deliberately not used: the auto-merge pushes with
-`GITHUB_TOKEN`, which never triggers push workflows, so code could ship before
-any CI run existed.
+- the PyPI project `desloppify` belongs to upstream, so PyPI rejects a trusted
+  publishing exchange from this repository (`invalid-publisher`);
+- with no publisher and no API token, a publish job could only fail *after*
+  every gate passed, turning the merge queue red for a reason unrelated to
+  code;
+- nothing here is meant to be installable under upstream's name.
 
-Safety gates before publish:
-- Refuse unless the checked-out commit is an ancestor of `origin/main`
-- Skip publish if version already exists on PyPI
-- Run `make scan-blobs` (last line of defence against a committed binary)
-- Run `make package-smoke`
-- Attest build provenance for `dist/*` (`actions/attest-build-provenance`)
+`make package-smoke` still runs in CI: building the wheel and sdist proves the
+packaging metadata is valid, which is a code-quality signal even when nothing
+is uploaded.
+
+The release counter in `.github/release-version.txt` keeps incrementing per
+merged pull request, so a version still identifies exactly one merge even
+though nothing is published.
 
 Third-party actions are pinned to a commit SHA; GitHub-owned actions track
 the latest major tag.
