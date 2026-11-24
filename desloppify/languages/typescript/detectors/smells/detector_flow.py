@@ -12,6 +12,7 @@ from .detector_core import (
     _FUNC_RE,
     _HANDLED_RE,
     _HIGH_CYCLOMATIC_THRESHOLD,
+    _find_signature_aware_brace,
     _IF_START,
     _MONSTER_FUNCTION_LOC,
     _MULTI_ELSE_IF_OPEN,

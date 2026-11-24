@@ -11,6 +11,7 @@ from .helpers import (
     _find_block_end,
     _strip_ts_comments,
 )
+from desloppify.languages.typescript.syntax.scanner import scan_code
 
 _MONSTER_FUNCTION_LOC = 150
 _HIGH_CYCLOMATIC_THRESHOLD = 15
